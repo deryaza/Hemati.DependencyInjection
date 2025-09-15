@@ -1,0 +1,53 @@
+<Project>
+    <PropertyGroup>
+        <_HematiIntermediateDir>$(ProjectDir)$(IntermediateOutputPath)ComponentSystem\</_HematiIntermediateDir>
+        <TargetsTriggeredByCompilation>$(TargetsTriggeredByCompilation);HMCreateDIInfoAssembly</TargetsTriggeredByCompilation>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <CreateDirectory Include="$(_HematiIntermediateDir)" />
+        <CompilerVisibleProperty Include="_HematiIntermediateDir" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Analyzer
+            Include="$(MSBuildThisFileDirectory)Hemati.DependencyInjection.Analyzer.dll"
+            Condition="'$(DesignTimeBuild)' != 'true'"
+            IsImplicitlyDefined="true" />
+        <None Include="$(_HematiIntermediateDir)$(TargetName).Precomp.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>$(TargetName).Precomp.dll</Link>
+        </None>
+    </ItemGroup>
+
+    <Target Name="HMCreateDIInfoAssembly" Condition="'$(DesignTimeBuild)' != 'true'" DependsOnTargets="ResolveReferences">
+        <ReadLinesFromFile File="$(_HematiIntermediateDir)all-compilation-files.txt">
+            <Output TaskParameter="Lines" ItemName="_HMDiCompilationFiles" />
+        </ReadLinesFromFile>
+
+        <ItemGroup>
+            <_HMDiCompilationFilesFullPaths Include="@(_HMDiCompilationFiles->'$(_HematiIntermediateDir)\%(Identity)')" />
+            <_HMDiCompilationFiles Remove="@(_HMDiCompilationFiles)" />
+        </ItemGroup>
+
+        <!-- Delete Files with deleted sources -->
+        <ItemGroup>
+            <_HMDiLeftoverFiles Include="$(_HematiIntermediateDir)/*.cs" Exclude="@(_HMDiCompilationFilesFullPaths)" />
+        </ItemGroup>
+        <Delete Files="@(_HMDiLeftoverFiles)" />
+        <ItemGroup>
+            <_HMDiLeftoverFiles Remove="@(_HMDiLeftoverFiles)" />
+        </ItemGroup>
+
+        <Csc Sources="@(_HMDiCompilationFilesFullPaths)"
+             LangVersion="latest"
+             References="@(ReferencePath)"
+             TargetType="Library"
+             DisabledWarnings="$(NoWarn)"
+             OutputAssembly="$(_HematiIntermediateDir)$(TargetName).Precomp.dll" />
+
+         <ItemGroup>
+             <_HMDiCompilationFilesFullPaths Remove="@(_HMDiCompilationFilesFullPaths)" />
+         </ItemGroup>
+    </Target>
+</Project>

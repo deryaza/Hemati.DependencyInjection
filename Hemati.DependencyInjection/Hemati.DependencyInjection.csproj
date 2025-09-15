@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+      <TargetFramework>net9.0</TargetFramework>
+      <ImplicitUsings>enable</ImplicitUsings>
+      <Nullable>enable</Nullable>
+      <Version>1.0.0</Version>
+      <Authors>deryaza</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+      <PackageReference Include="System.ComponentModel.Composition" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+      <None Remove="build/Hemati.DependencyInjection.targets"/>
+      
+      <None Include="build/Hemati.DependencyInjection.targets">
+        <Pack>true</Pack>
+        <PackagePath>build/</PackagePath>
+      </None>
+      <None Include="build/Hemati.DependencyInjection.Analyzer.dll">
+        <Pack>true</Pack>
+        <PackagePath>build/</PackagePath>
+      </None>
+  </ItemGroup>
+
+</Project>

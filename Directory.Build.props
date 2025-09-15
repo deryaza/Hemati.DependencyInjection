@@ -1,0 +1,25 @@
+<Project>
+    <PropertyGroup>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryUrl>https://github.com/deryaza/Hemati.DependencyInjection</RepositoryUrl>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <PackageLicenseExpression>LGPL-3.0-only</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <Authors>deryaza</Authors>
+
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+        <HTMainPackageVersion>1.0.0</HTMainPackageVersion>
+        <Version>$(HTMainPackageVersion)</Version>
+        <PackageVersion>$(HTMainPackageVersion)</PackageVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="$(MSBuildThisFileDirectory)COPYING" Pack="true" PackagePath="." />
+        <None Include="$(MSBuildThisFileDirectory)COPYING.LESSER" Pack="true" PackagePath="." />
+        <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="." />
+    </ItemGroup>
+</Project>
