@@ -6,5 +6,5 @@ namespace Hemati.DependencyInjection;
 
 public interface ISpCloneCreator
 {
- IServiceProvider Clone(IEnumerable<ServiceDescriptor> descriptorsToReplace);
+    IServiceProvider Clone(IEnumerable<ServiceDescriptor> descriptorsToReplace);
 }

@@ -15,7 +15,7 @@ internal static class OpenFileHelper
         {
             try
             {
-                return File.OpenWrite(masterFilePath);
+                return File.OpenWrite(path);
             }
             catch when (retryNo++ < RetriesCount)
             {

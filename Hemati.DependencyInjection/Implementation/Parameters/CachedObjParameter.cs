@@ -6,13 +6,13 @@ namespace Hemati.DependencyInjection.Implementation.Parameters;
 
 public class CachedObjParameter : Parameter
 {
- public CachedObjParameter(Type service, ImplementationInformation implementationInformation)
-  : base(service, HbServiceLifetime.ConnectionCache, implementationInformation, Array.Empty<Parameter>())
- {
- }
+    public CachedObjParameter(Type service, ImplementationInformation implementationInformation)
+     : base(service, HbServiceLifetime.ConnectionCache, implementationInformation, Array.Empty<Parameter>())
+    {
+    }
 
- public override bool Equals(Parameter other)
- {
-  return other is ConstantParameter cp && cp.Service == Service;
- }
+    public override bool Equals(Parameter other)
+    {
+        return other is ConstantParameter cp && cp.Service == Service;
+    }
 }

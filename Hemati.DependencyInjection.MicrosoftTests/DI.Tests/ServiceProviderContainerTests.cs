@@ -472,7 +472,7 @@ namespace Microsoft.Extensions.DependencyInjection.Tests
             }
         }
 
-        [Fact(Skip = "Let's say this is a know  multithreading issue -- mef is not thread safe either so...")]
+        [Fact]
         public async Task GetRequiredService_ResolvingSameSingletonInTwoThreads_SameServiceReturned()
         {
             using (var mreForThread1 = new ManualResetEvent(false))

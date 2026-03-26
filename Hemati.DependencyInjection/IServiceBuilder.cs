@@ -7,6 +7,6 @@ namespace Hemati.DependencyInjection;
 
 public interface IServiceBuilder
 {
- Func<ScopeCache, IServiceProvider, object?> Build(Parameter parameter);
+    Func<ScopeCache, IServiceProviderExtended, object?> Build(Parameter parameter);
 }
 

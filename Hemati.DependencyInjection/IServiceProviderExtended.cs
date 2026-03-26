@@ -5,19 +5,19 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Hemati.DependencyInjection;
 
-public interface IServiceProviderExtended : IServiceProvider
+public interface IServiceProviderExtended : IServiceProvider, IServiceScopeFactory
 {
- object? SatisfyImports(object? service);
+    void SatisfyImports(object? service);
 
- void Populate(PrecomputedServiceDescriptionData[] serviceDescriptions);
+    void Populate(PrecomputedServiceDescriptionData[] serviceDescriptions);
 
- void Depopulate(string tag);
+    void Depopulate(string tag);
 
- void Populate(IServiceCollection serviceCollection);
+    void Populate(IServiceCollection serviceCollection);
 
- IEnumerable<IServiceDescription> GetCurrentlyRegisteredServiceDescriptions();
+    IEnumerable<IServiceDescription> GetCurrentlyRegisteredServiceDescriptions();
 
- object? GetExportedValue(Type service, string? contract = null);
+    object? GetExportedValue(Type service, string? contract = null);
 
- void ClearAllBuildCaches();
+    void ClearAllBuildCaches();
 }

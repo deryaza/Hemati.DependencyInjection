@@ -41,6 +41,7 @@ public class EmitAllServicesInCompilation : DiagnosticAnalyzer
 
         IExporter exporter = new CSharpCodeExporter();
         exporter.ExportPath = val;
+        exporter.Export(visitor.AllTypesThatExportSomething);
     }
 }
 
@@ -77,7 +78,7 @@ file class NamespaceVisitor : SymbolVisitor
             AllTypesThatExportSomething.Add(key, oneOfdiInfo);
         }
 
-        foreach (ISymbol member in symbol.GetTypeMembers())
+        foreach (INamedTypeSymbol member in symbol.GetTypeMembers())
         {
             member.Accept(this);
         }

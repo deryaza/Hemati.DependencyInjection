@@ -163,7 +163,7 @@ namespace Microsoft.Extensions.DependencyInjection.Specification
             Assert.NotSame(fakeServiceFromScope1, fakeServiceFromScope2);
         }
 
-        [Fact(Skip = "Different behaviour")]
+        [Fact]
         public void SingletonServiceCanBeResolvedFromScope()
         {
             // Arrange
@@ -931,7 +931,7 @@ namespace Microsoft.Extensions.DependencyInjection.Specification
             Assert.IsType<FakeService>(enumerable[0]);
         }
 
-        [Theory(Skip = "Not supported")]
+        [Theory]
         [InlineData(typeof(IFakeService), typeof(FakeService), typeof(IFakeService), ServiceLifetime.Scoped)]
         [InlineData(typeof(IFakeService), typeof(FakeService), typeof(IFakeService), ServiceLifetime.Singleton)]
         [InlineData(typeof(IFakeOpenGenericService<>), typeof(FakeOpenGenericService<>), typeof(IFakeOpenGenericService<IServiceProvider>), ServiceLifetime.Scoped)]

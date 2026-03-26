@@ -2,264 +2,423 @@
 
 using System.Reflection;
 using System.Reflection.Emit;
+using Hemati.DependencyInjection.Implementation.Core;
 using Hemati.DependencyInjection.Implementation.Parameters;
+using Hemati.DependencyInjection.Implementation.ServiceDescriptions;
 
 namespace Hemati.DependencyInjection.Implementation;
 
-public partial class IlServiceBuilder : ServiceBuilder<IlServiceBuilder.IlContext>
+public class IlServiceBuilder : ServiceBuilder<IlServiceBuilder.IlContext>
 {
- internal class IlDelegateThisObject
- {
-  public readonly object[] Constants;
-  public readonly Func<IServiceProvider, object?>[] Factories;
+    public class IlDelegateThisObject
+    {
+        public readonly object[] Constants;
+        public readonly Func<IServiceProvider, object?>[] Factories;
 
-  public IlDelegateThisObject(object[] constants, Func<IServiceProvider, object?>[] factories)
-  {
-   Constants = constants;
-   Factories = factories;
-  }
- }
+        public IlDelegateThisObject(object[] constants, Func<IServiceProvider, object?>[] factories)
+        {
+            Constants = constants;
+            Factories = factories;
+        }
+    }
 
- public class IlContext
- {
-  public IlContext(ILGenerator generator)
-  {
-   Constants = [];
-   Factories = [];
-   Generator = generator;
-  }
+    public class IlContext
+    {
+        public IlContext(ILGenerator generator)
+        {
+            Constants = [];
+            Factories = [];
+            Generator = generator;
+        }
 
-  public ILGenerator Generator { get; }
-  public List<object> Constants { get; }
-  public List<Func<IServiceProvider, object?>> Factories { get; }
- }
+        public bool AreWeCreatingSingleton { get; set; }
 
- public override Func<ScopeCache, IServiceProvider, object?> Build(Parameter parameter)
- {
-  DynamicMethod destinationMethod = new(
-   $"FactoryOf{parameter.Service.Name}",
-   MethodAttributes.Public | MethodAttributes.Static,
-   CallingConventions.Standard,
-   typeof(object),
-   [
-    typeof(IlDelegateThisObject),
-    typeof(ScopeCache),
-    typeof(IServiceProvider)
-   ],
-   typeof(IlContext),
-   true);
+        public ILGenerator Generator { get; }
+        public List<object> Constants { get; }
+        public List<Func<IServiceProvider, object?>> Factories { get; }
+    }
 
-  ILGenerator generator = destinationMethod.GetILGenerator();
-  IlContext context = new(generator);
+    public override Func<ScopeCache, IServiceProviderExtended, object?> Build(Parameter parameter)
+    {
+        DynamicMethod destinationMethod = new(
+            $"FactoryOf{parameter.Service.Name}",
+            MethodAttributes.Public | MethodAttributes.Static,
+            CallingConventions.Standard,
+            typeof(object),
+            [
+                typeof(IlDelegateThisObject),
+                typeof(ScopeCache),
+                typeof(IServiceProviderExtended)
+            ],
+            typeof(IlContext),
+            true);
 
-  VisitMain(parameter, context);
-  generator.Emit(OpCodes.Ret);
+        ILGenerator generator = destinationMethod.GetILGenerator();
+        IlContext context = new(generator);
 
-  IlDelegateThisObject @this = new(context.Constants.ToArray(), context.Factories.ToArray());
-  Func<ScopeCache, IServiceProvider, object?> compiled = (Func<ScopeCache, IServiceProvider, object?>)destinationMethod.CreateDelegate(typeof(Func<ScopeCache, IServiceProvider, object?>), @this);
+        VisitMain(parameter, context);
+        generator.Emit(OpCodes.Ret);
 
-  return compiled;
- }
+        IlDelegateThisObject @this = new(context.Constants.ToArray(), context.Factories.ToArray());
+        Func<ScopeCache, IServiceProviderExtended, object?> compiled = (Func<ScopeCache, IServiceProviderExtended, object?>)destinationMethod.CreateDelegate(typeof(Func<ScopeCache, IServiceProviderExtended, object?>), @this);
 
- private static readonly MethodInfo IsAlreadyActivated = typeof(ScopeCache).GetMethod(nameof(ScopeCache.IsAlreadyActivated))!;
- private static readonly MethodInfo GetActivatedService = typeof(ScopeCache).GetMethod(nameof(ScopeCache.GetActivatedService))!;
- private static readonly MethodInfo StoreInCache = typeof(ScopeCache).GetMethod(nameof(ScopeCache.Store))!;
- private static readonly ConstructorInfo InvalidOperationExceptionConstructor = typeof(InvalidOperationException).GetConstructor([typeof(string)])!;
- private static readonly ConstructorInfo BaseServiceKeyConstructorInfo = typeof(BaseServiceKey).GetConstructor([typeof(string), typeof(string)])!;
+        /*var persistedAssemblyBuilder = new PersistedAssemblyBuilder(new AssemblyName("qweqwe"), typeof(object).Assembly);
+        var defineDynamicModule = persistedAssemblyBuilder.DefineDynamicModule("qwe");
+        var typeBuilder = defineDynamicModule.DefineType("Test");
+        var m1 = typeBuilder.DefineMethod(
+            $"FactoryOf{parameter.Service.Name}",
+            MethodAttributes.Public | MethodAttributes.Static,
+            CallingConventions.Standard,
+            typeof(object),
+            [
+                typeof(IlDelegateThisObject),
+                typeof(ScopeCache),
+                typeof(IServiceProviderExtended)
+            ]
+        );
+        generator = m1.GetILGenerator();
+        context = new(generator);
+        VisitMain(parameter, context);
+        generator.Emit(OpCodes.Ret);
+        typeBuilder.CreateType();
+        persistedAssemblyBuilder.Save("qwe.dll");*/
 
- protected virtual void EmitCreateNewService(Parameter parameter, IlContext context)
- {
-  base.VisitMain(parameter, context);
- }
+        return compiled;
+    }
 
- protected sealed override void VisitMain(Parameter parameter, IlContext context)
- {
-  ILGenerator il = context.Generator;
+    private static readonly MethodInfo TryGetActivatedService = typeof(ScopeCache).GetMethod(nameof(ScopeCache.TryGetActivatedService))!;
+    private static readonly MethodInfo StoreInCache = typeof(ScopeCache).GetMethod(nameof(ScopeCache.Store))!;
+    private static readonly MethodInfo LockExit = typeof(Lock).GetMethod(nameof(Lock.Exit))!;
+    private static readonly ConstructorInfo InvalidOperationExceptionConstructor = typeof(InvalidOperationException).GetConstructor([typeof(string)])!;
+    private static readonly ConstructorInfo BaseServiceKeyConstructorInfo = typeof(BaseServiceKey).GetConstructor([typeof(string), typeof(string)])!;
 
-  #region Locals and Labels
+    protected virtual void EmitCreateNewService(Parameter parameter, IlContext context, LocalBuilder resultInstanceVariable)
+    {
+        base.VisitMain(parameter, context);
+        context.Generator.Stloc(resultInstanceVariable.LocalIndex);
+    }
 
-  LocalBuilder serviceTypeVariable = il.DeclareLocal(typeof(BaseServiceKey));
-  Label getFromCacheLabel = il.DefineLabel();
-  Label exitLabel = il.DefineLabel();
+    private static readonly PropertyInfo ServiceResolverRootPropertyInfo = typeof(ServiceResolver).GetProperty(nameof(ServiceResolver.Root), BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly PropertyInfo RootResolverPropertyInfo = typeof(ScopeCache).GetProperty(nameof(ScopeCache.RootResolver), BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-  #endregion
+    protected sealed override void VisitMain(Parameter parameter, IlContext context)
+    {
+        ILGenerator il = context.Generator;
 
-  #region if (serviceActivated)
+        #region Locals and Labels
 
-  BaseServiceKey baseServiceKey = parameter.GetServiceKey();
+        LocalBuilder? varOrigCache = null;
+        LocalBuilder? varOrigSp = null;
+        if (parameter.Scope == HbServiceLifetime.Singleton && !context.AreWeCreatingSingleton)
+        {
+            context.AreWeCreatingSingleton = true;
+            varOrigCache = il.DeclareLocal(typeof(ScopeCache));
+            varOrigSp = il.DeclareLocal(typeof(IServiceProviderExtended));
 
-  il.Emit(OpCodes.Ldstr, baseServiceKey.TypeName);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Stloc(varOrigCache.LocalIndex);
+            il.Emit(OpCodes.Ldarg_2);
+            il.Stloc(varOrigSp.LocalIndex);
 
-  if (baseServiceKey.StringContract is null)
-  {
-   il.Emit(OpCodes.Ldnull);
-  }
-  else
-  {
-   il.Emit(OpCodes.Ldstr, baseServiceKey.StringContract);
-  }
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, RootResolverPropertyInfo.GetMethod!);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Call, ServiceResolverRootPropertyInfo.GetMethod!);
 
-  il.Emit(OpCodes.Newobj, BaseServiceKeyConstructorInfo);
-  il.Stloc(serviceTypeVariable.LocalIndex);
+            il.Emit(OpCodes.Starg_S, 1);
+            il.Emit(OpCodes.Starg_S, 2);
+        }
 
-  il.Emit(OpCodes.Ldarg_1); // ScopeCache
+        LocalBuilder varBaseServiceKey = il.DeclareLocal(typeof(BaseServiceKey));
+        LocalBuilder varResultInstance = il.DeclareLocal(typeof(object));
 
-  il.Emit(OpCodes.Ldarg_1);
-  il.Ldloc(serviceTypeVariable.LocalIndex);
-  il.Emit(OpCodes.Ldc_I4, parameter.ImplInfo.GetImplementationNumber());
-  il.EmitCall(OpCodes.Call, IsAlreadyActivated, null);
-  il.Emit(OpCodes.Dup);
+        Label exitLabel = il.DefineLabel();
 
-  il.Emit(OpCodes.Brtrue, getFromCacheLabel);
-  il.Emit(OpCodes.Pop);
+        #endregion
 
-  #endregion
+        BaseServiceKey baseServiceKey = parameter.GetServiceKey();
 
-  EmitCreateNewService(parameter, context);
-  il.Ldloc(serviceTypeVariable.LocalIndex);
-  il.Emit(OpCodes.Ldc_I4, parameter.ImplInfo.GetImplementationNumber());
-  il.Emit(OpCodes.Ldc_I4, 1 << (int)parameter.Scope);
-  il.EmitCall(OpCodes.Call, StoreInCache, null);
+        LocalBuilder? varLock = null;
+        if (parameter.Scope != HbServiceLifetime.Transient)
+        {
+            il.Emit(OpCodes.Ldstr, baseServiceKey.TypeName);
+            if (baseServiceKey.StringContract is null)
+            {
+                il.Emit(OpCodes.Ldnull);
+            }
+            else
+            {
+                il.Emit(OpCodes.Ldstr, baseServiceKey.StringContract);
+            }
 
-  il.Emit(OpCodes.Br, exitLabel);
+            il.Emit(OpCodes.Newobj, BaseServiceKeyConstructorInfo);
+            il.Stloc(varBaseServiceKey.LocalIndex);
 
-  #region Get from cache
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Ldc_I4, 1 << (int)parameter.Scope);
+            il.Ldloc(varBaseServiceKey.LocalIndex);
+            il.Emit(OpCodes.Ldc_I4, parameter.ImplInfo.GetImplementationNumber());
+            il.Ldloca(varResultInstance.LocalIndex);
+            il.EmitCall(OpCodes.Call, TryGetActivatedService, null);
+            il.Emit(OpCodes.Brtrue, exitLabel);
 
-  il.MarkLabel(getFromCacheLabel);
-  il.Ldloc(serviceTypeVariable.LocalIndex);
-  il.Emit(OpCodes.Ldc_I4, parameter.ImplInfo.GetImplementationNumber());
-  il.EmitCall(OpCodes.Call, GetActivatedService, null);
+            varLock = il.DeclareLocal(typeof(Lock));
+            il.Ldloc(varResultInstance.LocalIndex);
+            il.Stloc(varLock.LocalIndex);
+            il.BeginExceptionBlock();
+        }
 
-  #endregion
+        EmitCreateNewService(parameter, context, varResultInstance);
 
-  il.MarkLabel(exitLabel);
- }
+        if (parameter.Scope != HbServiceLifetime.Transient)
+        {
+            il.Emit(OpCodes.Ldarg_1);
+            il.Ldloc(varResultInstance.LocalIndex);
+            il.Ldloc(varBaseServiceKey.LocalIndex);
+            il.Emit(OpCodes.Ldc_I4, parameter.ImplInfo.GetImplementationNumber());
+            il.Emit(OpCodes.Ldc_I4, 1 << (int)parameter.Scope);
+            il.EmitCall(OpCodes.Call, StoreInCache, null);
 
- protected override void VisitCached(CachedObjParameter parameter, IlContext context)
- {
-  ILGenerator il = context.Generator;
-  il.Emit(OpCodes.Ldstr, $"Requested instance {parameter.Service.Name} was not cached");
-  il.Emit(OpCodes.Newobj, InvalidOperationExceptionConstructor);
-  il.Emit(OpCodes.Throw);
- }
+            il.BeginFinallyBlock();
+            il.Ldloc(varLock!.LocalIndex);
+            il.EmitCall(OpCodes.Callvirt, LockExit, null);
+            il.EndExceptionBlock();
+        }
 
- private static readonly FieldInfo ConstantsField = typeof(IlDelegateThisObject).GetField(nameof(IlDelegateThisObject.Constants))!;
+        il.MarkLabel(exitLabel);
+        il.Ldloc(varResultInstance.LocalIndex);
 
- protected sealed override void VisitConstant(ConstantParameter parameter, IlContext context)
- {
-  ILGenerator il = context.Generator;
-  il.Emit(OpCodes.Ldarg_0);
-  il.Emit(OpCodes.Ldfld, ConstantsField);
+        if (varOrigCache != null && varOrigSp != null)
+        {
+            context.AreWeCreatingSingleton = false;
+            il.Ldloc(varOrigCache.LocalIndex);
+            il.Emit(OpCodes.Starg_S, (byte)1);
+            il.Ldloc(varOrigSp.LocalIndex);
+            il.Emit(OpCodes.Starg_S, (byte)2);
+        }
+    }
 
-  int index = context.Constants.Count;
-  context.Constants.Add(parameter.Impl);
+    protected override void VisitInternal(InternalParameter ip, IlContext context)
+    {
+        var il = context.Generator;
+        switch (ip.Kind)
+        {
+            case InternalServiceKind.IServiceProvider:
+            case InternalServiceKind.IServiceProviderExtended:
+            case InternalServiceKind.IServiceScopeFactory:
+            {
+                il.Emit(OpCodes.Ldarg_2);
+                break;
+            }
+            case InternalServiceKind.IServiceScope:
+            {
+                var exit = il.DefineLabel();
+                il.Emit(OpCodes.Ldarg_2);
+                il.Emit(OpCodes.Isinst, typeof(ScopeCache));
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Brtrue, exit);
+                il.Emit(OpCodes.Pop);
+                il.Emit(OpCodes.Ldnull);
+                il.MarkLabel(exit);
 
-  il.Emit(OpCodes.Ldc_I4, index);
-  il.Emit(OpCodes.Ldelem, typeof(object));
- }
+                break;
+            }
+            case InternalServiceKind.IConnectionWideCache:
+            {
+                var done = il.DefineLabel();
+                il.Emit(OpCodes.Ldarg_2);
+                il.Emit(OpCodes.Isinst, typeof(ScopeCache));
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Brtrue, done);
 
- public static readonly FieldInfo FactoriesField = typeof(IlDelegateThisObject).GetField(nameof(IlDelegateThisObject.Factories))!;
+                var ifNotServiceResolver = il.DefineLabel();
+                {
+                    il.Emit(OpCodes.Pop);
+                    il.Emit(OpCodes.Ldarg_2);
+                    il.Emit(OpCodes.Isinst, typeof(ServiceResolver));
+                    il.Emit(OpCodes.Dup);
+                    il.Emit(OpCodes.Brfalse, ifNotServiceResolver);
 
- public static readonly MethodInfo FuncInvokeMethod = typeof(Func<IServiceProvider, object?>).GetMethod(nameof(Func<IServiceProvider, object?>.Invoke))!;
+                    il.Emit(OpCodes.Call, ServiceResolverRootPropertyInfo.GetMethod!);
+                    il.Emit(OpCodes.Br, done);
+                }
 
- protected sealed override void VisitFactory(FactoryParameter parameter, IlContext context)
- {
-  ILGenerator il = context.Generator;
-  int index = context.Factories.Count;
-  context.Factories.Add(parameter.Factory);
+                il.MarkLabel(ifNotServiceResolver);
+                {
+                    il.Emit(OpCodes.Pop);
+                    il.Emit(OpCodes.Ldnull);
+                }
 
-  il.Emit(OpCodes.Ldarg_0);
-  il.Emit(OpCodes.Ldfld, FactoriesField);
-  il.Emit(OpCodes.Ldc_I4, index);
-  il.Emit(OpCodes.Ldelem, typeof(Func<IServiceProvider, object?>));
-  il.Emit(OpCodes.Ldarg_2);
-  il.Emit(OpCodes.Call, FuncInvokeMethod);
- }
+                il.MarkLabel(done);
 
- // index 0 - ILDelegateThisObject
- // index 1 - ScopeCache(ServiceActivator)
+                break;
+            }
+            case InternalServiceKind.ISpCloneCreator:
+            {
+                var exit = il.DefineLabel();
+                il.Emit(OpCodes.Ldarg_2);
+                il.Emit(OpCodes.Isinst, typeof(ServiceResolver));
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Brtrue, exit);
+                il.Emit(OpCodes.Pop);
+                il.Emit(OpCodes.Ldnull);
+                il.MarkLabel(exit);
 
- protected sealed override void VisitImplType(ImplementationTypeParameter parameter, IlContext context)
- {
-  ILGenerator il = context.Generator;
-  foreach (Parameter constructorParameter in parameter.Parameters)
-  {
-   VisitMain(constructorParameter, context);
-   if (constructorParameter.Service.IsValueType)
-   {
-    il.Emit(OpCodes.Unbox_Any, constructorParameter.Service);
-   }
-  }
+                break;
+            }
+            default:
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+        }
+    }
 
-  il.Emit(OpCodes.Newobj, parameter.Constructor);
-  if (parameter.Constructor.DeclaringType!.IsValueType)
-  {
-   il.Emit(OpCodes.Box, parameter.Constructor.DeclaringType);
-  }
- }
+    protected override void VisitCached(CachedObjParameter parameter, IlContext context)
+    {
+        ILGenerator il = context.Generator;
+        il.Emit(OpCodes.Ldstr, $"Requested instance {parameter.Service.Name} was not cached");
+        il.Emit(OpCodes.Newobj, InvalidOperationExceptionConstructor);
+        il.Emit(OpCodes.Throw);
+    }
 
- protected sealed override void VisitUnknown(UnknownParameter parameter, IlContext context)
- {
-  if (GetUnknownParameterHandler(parameter) is { } visitor)
-  {
-   ILGenerator il = context.Generator;
-   int index = context.Factories.Count;
-   context.Factories.Add(visitor);
+    private static readonly FieldInfo ConstantsField = typeof(IlDelegateThisObject).GetField(nameof(IlDelegateThisObject.Constants))!;
 
-   il.Emit(OpCodes.Ldarg_0);
-   il.Emit(OpCodes.Ldfld, FactoriesField);
-   il.Emit(OpCodes.Ldc_I4, index);
-   il.Emit(OpCodes.Ldelem, typeof(Func<IServiceProvider, object?>));
-   il.Emit(OpCodes.Ldarg_1);
-   il.Emit(OpCodes.Call, FuncInvokeMethod);
-  }
-  else
-  {
-   context.Generator.Emit(OpCodes.Ldnull);
-  }
- }
+    protected sealed override void VisitConstant(ConstantParameter parameter, IlContext context)
+    {
+        ILGenerator il = context.Generator;
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Ldfld, ConstantsField);
 
- protected sealed override void VisitEnumerable(EnumerableParameter parameter, IlContext context)
- {
-  ILGenerator il = context.Generator;
+        int index = context.Constants.Count;
+        context.Constants.Add(parameter.Impl);
 
-  List<Parameter> parameters = parameter.EnumerableParameters.ToList();
+        il.Emit(OpCodes.Ldc_I4, index);
+        il.Emit(OpCodes.Ldelem, typeof(object));
+    }
 
-  il.Emit(OpCodes.Ldc_I4, parameters.Count);
-  il.Emit(OpCodes.Newarr, parameter.SingleElementType);
-  for (int i = 0; i < parameters.Count; i++)
-  {
-   Parameter par = parameters[i];
-   il.Emit(OpCodes.Dup);
+    public static readonly FieldInfo FactoriesField = typeof(IlDelegateThisObject).GetField(nameof(IlDelegateThisObject.Factories))!;
 
-   il.Emit(OpCodes.Ldc_I4, i);
-   VisitMain(par, context);
-   if (parameter.SingleElementType.IsValueType)
-   {
-    il.Emit(OpCodes.Unbox_Any, parameter.SingleElementType);
-   }
+    public static readonly MethodInfo FuncInvokeMethod = typeof(Func<IServiceProvider, object?>).GetMethod(nameof(Func<IServiceProvider, object?>.Invoke))!;
 
-   il.Emit(OpCodes.Stelem, parameter.SingleElementType);
-  }
+    protected sealed override void VisitFactory(FactoryParameter parameter, IlContext context)
+    {
+        ILGenerator il = context.Generator;
+        int index = context.Factories.Count;
+        context.Factories.Add(parameter.Factory);
 
-  if (parameter.RequestedCollectionType is not { } colType)
-  {
-   return;
-  }
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Ldfld, FactoriesField);
+        il.Emit(OpCodes.Ldc_I4, index);
+        il.Emit(OpCodes.Ldelem, typeof(Func<IServiceProvider, object?>));
+        il.Emit(OpCodes.Ldarg_2);
+        il.Emit(OpCodes.Call, FuncInvokeMethod);
+    }
 
-  if (colType.IsArray)
-  {
-   return;
-  }
+    // index 0 - ILDelegateThisObject
+    // index 1 - ScopeCache(ServiceActivator)
 
-  ConstructorInfo? ctor = colType.GetConstructor([typeof(IEnumerable<>).MakeGenericType(parameter.SingleElementType)]);
-  if (ctor is null)
-  {
-   throw new InvalidOperationException("Requested collection type had no accessible constructors for creation (with single IEnumerable<elementType>)");
-  }
+    protected sealed override void VisitImplType(ImplementationTypeParameter parameter, IlContext context)
+    {
+        ILGenerator il = context.Generator;
+        LocalBuilder[] localBuilders = new LocalBuilder[parameter.Parameters.Length];
+        for (var index = 0; index < parameter.Parameters.Length; index++)
+        {
+            var constructorParameter = parameter.Parameters[index];
+            VisitMain(constructorParameter, context);
 
-  il.Emit(OpCodes.Newobj, ctor);
- }
+            var local = localBuilders[index] = il.DeclareLocal(typeof(object));
+            il.Stloc(local.LocalIndex);
+        }
 
- protected virtual Func<IServiceProvider, object?>? GetUnknownParameterHandler(UnknownParameter parameter) => null;
+        for (var index = 0; index < parameter.Parameters.Length; index++)
+        {
+            var constructorParameter = parameter.Parameters[index];
+            var local = localBuilders[index];
+
+            il.Ldloc(local.LocalIndex);
+            if (constructorParameter.Service.IsValueType)
+            {
+                il.Emit(OpCodes.Unbox_Any, constructorParameter.Service);
+            }
+        }
+
+        il.Emit(OpCodes.Newobj, parameter.Constructor);
+        if (parameter.Constructor.DeclaringType!.IsValueType)
+        {
+            il.Emit(OpCodes.Box, parameter.Constructor.DeclaringType);
+        }
+    }
+
+    protected sealed override void VisitUnknown(UnknownParameter parameter, IlContext context)
+    {
+        if (GetUnknownParameterHandler(parameter) is { } visitor)
+        {
+            ILGenerator il = context.Generator;
+            int index = context.Factories.Count;
+            context.Factories.Add(visitor);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldfld, FactoriesField);
+            il.Emit(OpCodes.Ldc_I4, index);
+            il.Emit(OpCodes.Ldelem, typeof(Func<IServiceProvider, object?>));
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, FuncInvokeMethod);
+        }
+        else
+        {
+            context.Generator.Emit(OpCodes.Ldnull);
+        }
+    }
+
+    protected sealed override void VisitEnumerable(EnumerableParameter parameter, IlContext context)
+    {
+        ILGenerator il = context.Generator;
+
+        Parameter[] parameters = parameter.EnumerableParameters.ToArray();
+
+        var elementLocal = il.DeclareLocal(parameter.SingleElementType);
+        var arrayLocal = il.DeclareLocal(parameter.SingleElementType.MakeArrayType());
+        il.Emit(OpCodes.Ldc_I4, parameters.Length);
+        il.Emit(OpCodes.Newarr, parameter.SingleElementType);
+        il.Stloc(arrayLocal.LocalIndex);
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            Parameter par = parameters[i];
+
+            VisitMain(par, context);
+            if (parameter.SingleElementType.IsValueType)
+            {
+                il.Emit(OpCodes.Unbox_Any, parameter.SingleElementType);
+            }
+
+            il.Stloc(elementLocal.LocalIndex);
+
+            il.Ldloc(arrayLocal.LocalIndex);
+            il.Emit(OpCodes.Ldc_I4, i);
+            il.Ldloc(elementLocal.LocalIndex);
+
+            il.Emit(OpCodes.Stelem, parameter.SingleElementType);
+        }
+
+        il.Ldloc(arrayLocal.LocalIndex);
+        if (parameter.RequestedCollectionType is not { } colType)
+        {
+            return;
+        }
+
+        if (colType.IsArray)
+        {
+            return;
+        }
+
+        ConstructorInfo? ctor = colType.GetConstructor([typeof(IEnumerable<>).MakeGenericType(parameter.SingleElementType)]);
+        if (ctor is null)
+        {
+            throw new InvalidOperationException("Requested collection type had no accessible constructors for creation (with single IEnumerable<elementType>)");
+        }
+
+        il.Emit(OpCodes.Newobj, ctor);
+    }
+
+    protected virtual Func<IServiceProvider, object?>? GetUnknownParameterHandler(UnknownParameter parameter) => null;
 }

@@ -1,3 +1,4 @@
 [*.cs]
 dotnet_diagnostic.IDE0073.severity = error
+dotnet_diagnostic.CS1591.severity = none
 file_header_template = SPDX-License-Identifier: LGPL-3.0-only

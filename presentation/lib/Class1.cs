@@ -15,5 +15,8 @@ public class Class1 : ILibService
     public void Do()
     {
         Console.WriteLine("Hello from lib!");
+        Console.WriteLine("Hello from lib!");
+        Console.WriteLine("Hello from lib!");
+        Console.WriteLine("Hello from lib!");
     }
 }

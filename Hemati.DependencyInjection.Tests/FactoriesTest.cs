@@ -2,7 +2,6 @@
 
 using Hemati.DependencyInjection;
 using Hemati.DependencyInjection.Implementation;
-using Hemati.DependencyInjection.Implementation.Mef.ConstructorParameterVisitors;
 using Hemati.DependencyInjection.Implementation.Parameters;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,28 +17,27 @@ public class FactoriesTest
         List<PrecomputedServiceDescriptionData> precomputedServiceDescription = new();
         setupPrecomp?.Invoke(precomputedServiceDescription);
 
+        // NOTE: overrides service builder!!!
         return new ServiceResolver(
             serviceCollection,
             precomputedServiceDescription.ToArray(),
-            new(
-                new BuildeHandlesUnknownParams(),
-                new(
-                    new(
-                        new(MefConstructorParameterVisitors.GetVisitors())))
-            )
-        );
+            new ServiceActivator(
+                new BuilderHandlesUnknownParams(),
+                new ServicesDescriptor(),
+                new ParameterFactory(
+                    new ConstructorVisitor()
+                )
+            ));
     }
 
     [Fact]
     public void test_factory()
     {
-        var resolver = Setup(
-            sc => sc.AddTransient(
-                fc =>
-                {
-                    Console.WriteLine(fc);
-                    return new Testaaa();
-                }));
+        var resolver = Setup(sc => sc.AddTransient(fc =>
+        {
+            Console.WriteLine(fc);
+            return new Testaaa();
+        }));
 
         using (IServiceScope serviceScope = resolver.CreateScope())
         {
@@ -71,7 +69,7 @@ public class FactoriesTest
         }
     }
 
-    class BuildeHandlesUnknownParams : IlServiceBuilder
+    class BuilderHandlesUnknownParams : IlServiceBuilder
     {
         protected override Func<IServiceProvider, object?>? GetUnknownParameterHandler(UnknownParameter parameter)
         {

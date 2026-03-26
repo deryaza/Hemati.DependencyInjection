@@ -4,5 +4,5 @@ namespace Hemati.DependencyInjection.Implementation;
 
 public interface Extensions
 {
- 
+
 }

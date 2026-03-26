@@ -1,74 +1,85 @@
 ﻿// SPDX-License-Identifier: LGPL-3.0-only
 
 using System.Collections.Concurrent;
+using Hemati.DependencyInjection.Implementation.Core;
 using Hemati.DependencyInjection.Implementation.Parameters;
 using Hemati.DependencyInjection.Implementation.ServiceDescriptions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Hemati.DependencyInjection.Implementation;
 
-public partial class ServiceActivator
+public class ServiceActivator
 {
- private readonly ConcurrentDictionary<FindServiceRequest, Func<ScopeCache, IServiceProvider, object?>> _implementations;
- private readonly Func<FindServiceRequest, Func<ScopeCache, IServiceProvider, object?>> _buildFunc;
- private readonly DependentPropertiesSetter _dependentPropertiesSetter = new();
+    private readonly Func<IServiceDescription, Func<ScopeCache, IServiceProviderExtended, object?>> _buildDescriptionFunc;
+    private readonly ConcurrentDictionary<IServiceDescription, Func<ScopeCache, IServiceProviderExtended, object?>> _builtDescriptions;
 
- public readonly IServiceBuilder Builder;
- public readonly ServicesDescriptor Descriptor;
+    private readonly Func<FindServiceRequest, Func<ScopeCache, IServiceProviderExtended, object?>> _buildServiceRequestFunc;
+    private readonly ConcurrentDictionary<FindServiceRequest, Func<ScopeCache, IServiceProviderExtended, object?>> _requestCache;
 
- public ServiceActivator(IServiceBuilder builder, ServicesDescriptor descriptor)
- {
-  _implementations = new();
-  _buildFunc = Build; // cached, so no allocations on each GetService call
+    private readonly DependentPropertiesSetter _dependentPropertiesSetter = new();
 
-  Builder = builder;
-  Descriptor = descriptor;
- }
+    public readonly IServiceBuilder Builder;
+    public readonly ServicesDescriptor Descriptor;
+    private readonly ParameterFactory _parameterFactory;
 
- protected virtual Func<ScopeCache, IServiceProvider, object?> BuildCore(Parameter parameter) => Builder.Build(parameter);
+    public ServiceActivator(IServiceBuilder builder, ServicesDescriptor descriptor, ParameterFactory parameterFactory)
+    {
+        _builtDescriptions = new(-1, 1024);
+        _requestCache = new(-1, 1024);
+        _buildDescriptionFunc = BuildDescription; // cached, so no allocations on each GetService call
+        _buildServiceRequestFunc = BuildServiceRequest;
 
- private Func<ScopeCache, IServiceProvider, object?> Build(FindServiceRequest type) =>
-  Descriptor.TryGetParameter(null, type) is (var parameter, _)
-   ? BuildCore(parameter)
-   : BuildCore(new UnknownParameter(type.ServiceType, Core.HbServiceLifetime.Transient));
+        Builder = builder;
+        Descriptor = descriptor;
+        _parameterFactory = parameterFactory;
+    }
 
- public virtual object? GetService(FindServiceRequest findServiceType, ScopeCache cache, IServiceProvider caller)
- {
-  return cache.IsAlreadyActivated(findServiceType.ToBaseServiceKey(), ScopeCache.DefaultImplementationNumber) switch
-  {
-   CacheScope.None => _implementations.GetOrAdd(findServiceType, _buildFunc)(cache, caller),
-   var scope => cache.GetActivatedService(scope, findServiceType.ToBaseServiceKey(), ScopeCache.DefaultImplementationNumber)
-  };
- }
+    protected virtual Func<ScopeCache, IServiceProviderExtended, object?> BuildCore(Parameter parameter) => Builder.Build(parameter);
 
- internal object? GetService(IServiceDescription serviceDescription, int implementationNumber, ScopeCache cache, IServiceProvider caller)
- {
-  return cache.IsAlreadyActivated(serviceDescription.GetBaseServiceKey(), implementationNumber) switch
-  {
-   CacheScope.None => BuildCore(Descriptor.CreateParameter(serviceDescription))(cache, caller),
-   var scope => cache.GetActivatedService(scope, serviceDescription.GetBaseServiceKey(), implementationNumber)
-  };
- }
+    private Func<ScopeCache, IServiceProviderExtended, object?> BuildDescription(IServiceDescription serviceDescription) =>
+        BuildCore(_parameterFactory.CreateFromServiceDescription(serviceDescription, Descriptor, new(null, serviceDescription)));
 
- internal object? SatisfyImports(object? service, IServiceProvider serviceProvider)
- {
-  if (service == null)
-  {
-   return service;
-  }
+    private Func<ScopeCache, IServiceProviderExtended, object?> BuildServiceRequest(FindServiceRequest findServiceRequest)
+    {
+        var desc = Descriptor.TryGetServiceDescription(findServiceRequest);
+        if (desc != null)
+        {
+            return _builtDescriptions.GetOrAdd(desc, _buildDescriptionFunc);
+        }
 
-  _dependentPropertiesSetter.SetFields(serviceProvider, service, service.GetType());
-  return service;
- }
+        return BuildCore(new UnknownParameter(findServiceRequest.ServiceType, HbServiceLifetime.Transient));
+    }
 
- public void ClearCaches()
- {
-  _implementations.Clear();
-  _dependentPropertiesSetter.Clear();
- }
+    public virtual object? GetService(FindServiceRequest findServiceRequest, ScopeCache cache, IServiceProviderExtended caller)
+    {
+        return _requestCache.GetOrAdd(findServiceRequest, _buildServiceRequestFunc)(cache, caller);
+    }
 
- public ServiceActivator Clone(IEnumerable<ServiceDescriptor> descriptorsToReplace)
- {
-  return new(Builder, Descriptor.Clone(descriptorsToReplace));
- }
+    internal object? GetService(IServiceDescription serviceDescription, ScopeCache cache, IServiceProviderExtended caller)
+    {
+        return _builtDescriptions.GetOrAdd(serviceDescription, _buildDescriptionFunc)(cache, caller);
+    }
+
+    internal void SatisfyImports(object? service, IServiceProvider serviceProvider)
+    {
+        if (service == null)
+        {
+            return;
+        }
+
+        _dependentPropertiesSetter.SetFields(serviceProvider, service, service.GetType());
+    }
+
+    public void ClearCaches()
+    {
+        _builtDescriptions.Clear();
+        _requestCache.Clear();
+        _dependentPropertiesSetter.Clear();
+        Descriptor.Clear();
+    }
+
+    public ServiceActivator Clone(IEnumerable<ServiceDescriptor> descriptorsToReplace)
+    {
+        return new(Builder, Descriptor.Clone(descriptorsToReplace), _parameterFactory);
+    }
 }

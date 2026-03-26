@@ -4,15 +4,17 @@ using Hemati.DependencyInjection.Implementation.Core;
 
 namespace Hemati.DependencyInjection.Implementation.ServiceDescriptions;
 
-public class ConstructedOpenGenericImplementationTypeDescription(Type contractType, Type implementationType, HbServiceLifetime serviceLifetime) : ServiceDescriptionBase
+public class ConstructedOpenGenericImplementationTypeDescription(Type contractType, Type implementationType, HbServiceLifetime serviceLifetime, IServiceDescription openGenericServiceDescription) : ServiceDescriptionBase
 {
- public override bool IsImplementationType => true;
+    public IServiceDescription OpenGenericServiceDescription { get; } = openGenericServiceDescription;
 
- public override BaseServiceKey GetBaseServiceKey() => new(contractType, null);
+    public override bool IsImplementationType => true;
 
- public override Type LoadServiceContract() => contractType;
+    public override BaseServiceKey GetBaseServiceKey() => new(contractType, null);
 
- public override HbServiceLifetime GetServiceScope() => serviceLifetime;
+    public override Type LoadServiceContract() => contractType;
 
- protected override Type LoadImplementationTypeCore() => implementationType;
+    public override HbServiceLifetime GetServiceScope() => serviceLifetime;
+
+    protected override Type LoadImplementationTypeCore() => implementationType;
 }

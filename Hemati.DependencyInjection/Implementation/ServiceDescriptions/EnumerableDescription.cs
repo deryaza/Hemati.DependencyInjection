@@ -10,18 +10,18 @@ public class EnumerableDescription(
  IEnumerable<IServiceDescription> elementDescriptions,
  Type? requestedCollectionType) : ServiceDescriptionBase
 {
- public Type? RequestedCollectionType { get; } = requestedCollectionType;
+    public Type? RequestedCollectionType { get; } = requestedCollectionType;
 
- public override bool IsEnumerableType => true;
+    public override bool IsEnumerableType => true;
 
- public override BaseServiceKey GetBaseServiceKey() => new(constructedEnumerableType, null);
+    public override BaseServiceKey GetBaseServiceKey() => new(constructedEnumerableType, null);
 
- public override Type LoadServiceContract() => constructedEnumerableType;
+    public override Type LoadServiceContract() => constructedEnumerableType;
 
- public override HbServiceLifetime GetServiceScope() => HbServiceLifetime.Transient;
+    public override HbServiceLifetime GetServiceScope() => HbServiceLifetime.Transient;
 
- protected override (IEnumerable<IServiceDescription>, Type elementContractType, Type? requestedCollectionType) GetEnumerableDescriptionCore()
- {
-  return (elementDescriptions, elementContractType, RequestedCollectionType);
- }
+    protected override (IEnumerable<IServiceDescription>, Type elementContractType, Type? requestedCollectionType) GetEnumerableDescriptionCore()
+    {
+        return (elementDescriptions, elementContractType, RequestedCollectionType);
+    }
 }

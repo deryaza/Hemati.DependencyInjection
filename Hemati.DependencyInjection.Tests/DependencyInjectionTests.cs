@@ -1,7 +1,7 @@
 ﻿// SPDX-License-Identifier: LGPL-3.0-only
 
+using Hemati.DependencyInjection;
 using Hemati.DependencyInjection.Implementation;
-using Hemati.DependencyInjection.Implementation.Mef.ConstructorParameterVisitors;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace TestProject1;
@@ -89,18 +89,7 @@ public class DependencyInjectionTests
         sc.AddTransient(typeof(IGenericTest<>), typeof(GenericTest<>));
         sc.AddTransient(typeof(IGenericWithEnumerable<>), typeof(GenericWithEnumerable<>));
         sc.AddSingleton<IIHaveInternals, HaveInternals>();
-        Provider = new ServiceResolver(
-            sc,
-            [],
-            new ServiceActivator(
-                new InterceptingImportAttributesBuilder(),
-                new ServicesDescriptor(
-                    new ParameterFactory(
-                        new ConstructorVisitorFactory(MefConstructorParameterVisitors.GetVisitors())
-                    )
-                )
-            )
-        );
+        Provider = ServiceResolverApiExtensions.BuildServiceProvider(sc, []);
     }
 
     [Fact]

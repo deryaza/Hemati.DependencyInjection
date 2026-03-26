@@ -6,18 +6,18 @@ namespace Hemati.DependencyInjection.Implementation.Parameters;
 
 public class ConstantParameter : Parameter
 {
- public ConstantParameter(object impl, Type service, ImplementationInformation implementationInformation, HbServiceLifetime scope)
-  : base(service, scope, implementationInformation, Array.Empty<Parameter>())
- {
-  Impl = impl;
- }
+    public ConstantParameter(object impl, Type service, ImplementationInformation implementationInformation, HbServiceLifetime scope)
+     : base(service, scope, implementationInformation, Array.Empty<Parameter>())
+    {
+        Impl = impl;
+    }
 
- public object Impl { get; }
+    public object Impl { get; }
 
- public override bool Equals(Parameter other)
- {
-  return other is ConstantParameter cp &&
-      cp.Service == Service &&
-      cp.Impl == Impl;
- }
+    public override bool Equals(Parameter other)
+    {
+        return other is ConstantParameter cp &&
+            cp.Service == Service &&
+            cp.Impl == Impl;
+    }
 }

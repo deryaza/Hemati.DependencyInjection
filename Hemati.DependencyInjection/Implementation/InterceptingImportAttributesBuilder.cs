@@ -1,5 +1,6 @@
 ﻿// SPDX-License-Identifier: LGPL-3.0-only
 
+using System.ComponentModel.Composition;
 using System.Reflection;
 using System.Reflection.Emit;
 using Hemati.DependencyInjection.Implementation.Parameters;
@@ -8,34 +9,43 @@ namespace Hemati.DependencyInjection.Implementation;
 
 public class InterceptingImportAttributesBuilder : IlServiceBuilder
 {
- private static readonly MethodInfo SatisfyImports = typeof(IServiceProviderExtended).GetMethod(nameof(IServiceProviderExtended.SatisfyImports))!;
+    private static readonly MethodInfo SatisfyImports = typeof(IServiceProviderExtended).GetMethod(nameof(IServiceProviderExtended.SatisfyImports))!;
 
- protected override void EmitCreateNewService(Parameter parameter, IlContext context)
- {
-  ILGenerator il = context.Generator;
-  Label notExtendedSp = il.DefineLabel();
-  Label exit = il.DefineLabel();
+    protected override void EmitCreateNewService(Parameter parameter, IlContext context, LocalBuilder resultInstanceVariable)
+    {
+        base.EmitCreateNewService(parameter, context, resultInstanceVariable);
+        if (parameter is not ImplementationTypeParameter implementationTypeParameter
+            || !ShouldEmitSatisfyImports(implementationTypeParameter.Constructor.DeclaringType))
+        {
+            return;
+        }
 
-  LocalBuilder declareLocal = il.DeclareLocal(typeof(object));
+        ILGenerator il = context.Generator;
 
-  // puts service on the stack
-  base.EmitCreateNewService(parameter, context);
-  il.Stloc(declareLocal.LocalIndex);
+        il.Emit(OpCodes.Ldarg_2);
+        il.Ldloc(resultInstanceVariable.LocalIndex);
+        il.EmitCall(OpCodes.Callvirt, SatisfyImports, null);
+    }
 
-  il.Emit(OpCodes.Ldarg_2);
-  il.Emit(OpCodes.Isinst, typeof(IServiceProviderExtended));
-  il.Emit(OpCodes.Dup);
-  il.Emit(OpCodes.Brfalse, notExtendedSp);
+    private static bool ShouldEmitSatisfyImports(Type? t)
+    {
+        while (t is not null && t != typeof(object))
+        {
+            foreach (PropertyInfo property in t.GetProperties())
+            {
+                if (property.SetMethod is not null)
+                {
+                    ImportAttribute? customAttribute = property.GetCustomAttribute<ImportAttribute>();
+                    if (customAttribute != null)
+                    {
+                        return true;
+                    }
+                }
+            }
 
-  il.Ldloc(declareLocal.LocalIndex);
-  il.EmitCall(OpCodes.Callvirt, SatisfyImports, null);
+            t = t.BaseType;
+        }
 
-  il.Emit(OpCodes.Br, exit);
-  il.MarkLabel(notExtendedSp);
-
-  il.Emit(OpCodes.Pop);
-  il.Ldloc(declareLocal.LocalIndex);
-
-  il.MarkLabel(exit);
- }
+        return false;
+    }
 }
