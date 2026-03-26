@@ -13,7 +13,26 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
 {
     public const int DefaultImplementationNumber = 0;
 
-    public readonly record struct CacheEntry(BaseServiceKey BaseServiceKey, int ImplementationNumber);
+    public readonly struct CacheEntry(BaseServiceKey baseServiceKey, int implementationNumber) : IEquatable<CacheEntry>
+    {
+        private readonly BaseServiceKey _baseServiceKey = baseServiceKey;
+        private readonly int _implementationNumber = implementationNumber;
+
+        public bool Equals(CacheEntry other)
+        {
+            return _baseServiceKey.Equals(other._baseServiceKey) && _implementationNumber == other._implementationNumber;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is CacheEntry other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return _baseServiceKey.GetHashCode();
+        }
+    }
 
     private readonly Dictionary<CacheScope, ConcurrentDictionary<CacheEntry, object?>> _cacheEntries;
     private readonly ScopeRole _scopeRole;
@@ -101,7 +120,7 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
 
     public ScopeCache CopyKeep(ScopeRole scopeRole, CacheScope scope)
     {
-        var dictionary = new Dictionary<CacheScope, ConcurrentDictionary<CacheEntry, object?>>();
+        var dictionary = new Dictionary<CacheScope, ConcurrentDictionary<CacheEntry, object?>>(4);
 
         dictionary[CacheScope.Singleton] = (scope & CacheScope.Singleton) != 0 ? _cacheEntries[CacheScope.Singleton] : new();
         dictionary[CacheScope.Scoped] = (scope & CacheScope.Scoped) != 0 ? _cacheEntries[CacheScope.Scoped] : new();

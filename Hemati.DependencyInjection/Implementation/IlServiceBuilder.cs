@@ -90,7 +90,7 @@ public class IlServiceBuilder : ServiceBuilder<IlServiceBuilder.IlContext>
     private static readonly MethodInfo StoreInCache = typeof(ScopeCache).GetMethod(nameof(ScopeCache.Store))!;
     private static readonly MethodInfo LockExit = typeof(Lock).GetMethod(nameof(Lock.Exit))!;
     private static readonly ConstructorInfo InvalidOperationExceptionConstructor = typeof(InvalidOperationException).GetConstructor([typeof(string)])!;
-    private static readonly ConstructorInfo BaseServiceKeyConstructorInfo = typeof(BaseServiceKey).GetConstructor([typeof(string), typeof(string)])!;
+    private static readonly ConstructorInfo BaseServiceKeyConstructorInfo = typeof(BaseServiceKey).GetConstructor([typeof(string), typeof(string), typeof(int)])!;
 
     protected virtual void EmitCreateNewService(Parameter parameter, IlContext context, LocalBuilder resultInstanceVariable)
     {
@@ -150,6 +150,8 @@ public class IlServiceBuilder : ServiceBuilder<IlServiceBuilder.IlContext>
             {
                 il.Emit(OpCodes.Ldstr, baseServiceKey.StringContract);
             }
+            
+            il.Emit(OpCodes.Ldc_I4, baseServiceKey.GetHashCode());
 
             il.Emit(OpCodes.Newobj, BaseServiceKeyConstructorInfo);
             il.Stloc(varBaseServiceKey.LocalIndex);

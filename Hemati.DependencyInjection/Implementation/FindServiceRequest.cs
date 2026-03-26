@@ -25,6 +25,6 @@ public struct FindServiceRequest(Type serviceType) : IEquatable<FindServiceReque
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(ServiceType, IsImportManyRequest, StringContract);
+        return ServiceType.GetHashCode();
     }
 }

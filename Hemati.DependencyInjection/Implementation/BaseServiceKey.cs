@@ -14,10 +14,15 @@ public struct BaseServiceKey : IEquatable<BaseServiceKey>
     }
 
     public BaseServiceKey(string typeName, string? stringContract)
+        : this(typeName, stringContract, typeName.GetHashCode())
+    {
+    }
+
+    public BaseServiceKey(string typeName, string? stringContract, int hash)
     {
         _typeName = typeName;
         _stringContract = stringContract;
-        _hash = HashCode.Combine(typeName, stringContract);
+        _hash = hash;
     }
 
     public string TypeName => _typeName;
