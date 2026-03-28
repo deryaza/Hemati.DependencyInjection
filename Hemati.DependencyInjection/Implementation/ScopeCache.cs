@@ -34,17 +34,17 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
         }
     }
 
-    private readonly Dictionary<CacheScope, ConcurrentDictionary<CacheEntry, object?>> _cacheEntries;
+    private readonly ConcurrentDictionary<CacheEntry, object?>[] _cacheEntries;
     private readonly ScopeRole _scopeRole;
 
-    private static Dictionary<CacheScope, ConcurrentDictionary<CacheEntry, object?>> CreateRootCache()
+    private static ConcurrentDictionary<CacheEntry, object?>[] CreateRootCache()
     {
-        var dictionary = new Dictionary<CacheScope, ConcurrentDictionary<CacheEntry, object?>>();
-        dictionary[CacheScope.Singleton] = new();
-        dictionary[CacheScope.Scoped] = new();
-        dictionary[CacheScope.ConnectionWide] = new();
-        dictionary[CacheScope.ConnectionCache] = new();
-        return dictionary;
+        var entries = new ConcurrentDictionary<CacheEntry, object?>[4];
+        entries[CacheScopeIndexes.Singleton] = new();
+        entries[CacheScopeIndexes.Scoped] = new();
+        entries[CacheScopeIndexes.ConnectionWide] = new();
+        entries[CacheScopeIndexes.ConnectionCache] = new();
+        return entries;
     }
 
     public ScopeCache(ServiceActivator activator, ScopeRole scopeRole, ServiceResolver rootResolver)
@@ -53,7 +53,7 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
         RootResolver = rootResolver;
     }
 
-    private ScopeCache(ServiceActivator activator, Dictionary<CacheScope, ConcurrentDictionary<CacheEntry, object?>> cacheEntries, ScopeRole scopeRole, ServiceResolver rootResolver)
+    private ScopeCache(ServiceActivator activator, ConcurrentDictionary<CacheEntry, object?>[] cacheEntries, ScopeRole scopeRole, ServiceResolver rootResolver)
     {
         RootResolver = rootResolver;
         _scopeRole = scopeRole;
@@ -70,7 +70,7 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
     public bool TryGetActivatedService(CacheScope scope, BaseServiceKey serviceKey, int implementationNo, out object? implementation)
     {
         CacheEntry key = new(serviceKey, implementationNo);
-        var scopeEntries = _cacheEntries[scope];
+        var scopeEntries = _cacheEntries[CacheScopeIndexes.ToIndex(scope)];
         if (!scopeEntries.TryGetValue(key, out implementation))
         {
             Lock getServiceLock = new Lock();
@@ -114,23 +114,23 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
     {
         Debug.Assert(scope != CacheScope.Transient);
 
-        ConcurrentDictionary<CacheEntry, object?> ce = _cacheEntries[scope];
+        ConcurrentDictionary<CacheEntry, object?> ce = _cacheEntries[CacheScopeIndexes.ToIndex(scope)];
         ce[new(serviceType, implementationNo)] = implementation;
     }
 
     public ScopeCache CopyKeep(ScopeRole scopeRole, CacheScope scope)
     {
-        var dictionary = new Dictionary<CacheScope, ConcurrentDictionary<CacheEntry, object?>>(4);
+        var entries = new ConcurrentDictionary<CacheEntry, object?>[4];
 
-        dictionary[CacheScope.Singleton] = (scope & CacheScope.Singleton) != 0 ? _cacheEntries[CacheScope.Singleton] : new();
-        dictionary[CacheScope.Scoped] = (scope & CacheScope.Scoped) != 0 ? _cacheEntries[CacheScope.Scoped] : new();
-        dictionary[CacheScope.ConnectionWide] = (scope & CacheScope.ConnectionWide) != 0 ? _cacheEntries[CacheScope.ConnectionWide] : new();
-        dictionary[CacheScope.ConnectionCache] = (scope & CacheScope.ConnectionCache) != 0 ? _cacheEntries[CacheScope.ConnectionCache] : new();
+        entries[CacheScopeIndexes.Singleton] = (scope & CacheScope.Singleton) != 0 ? _cacheEntries[CacheScopeIndexes.Singleton] : new();
+        entries[CacheScopeIndexes.Scoped] = (scope & CacheScope.Scoped) != 0 ? _cacheEntries[CacheScopeIndexes.Scoped] : new();
+        entries[CacheScopeIndexes.ConnectionWide] = (scope & CacheScope.ConnectionWide) != 0 ? _cacheEntries[CacheScopeIndexes.ConnectionWide] : new();
+        entries[CacheScopeIndexes.ConnectionCache] = (scope & CacheScope.ConnectionCache) != 0 ? _cacheEntries[CacheScopeIndexes.ConnectionCache] : new();
 
         // TODO: optimize
         return new(
             Activator,
-            dictionary,
+            entries,
             scopeRole,
             RootResolver
         );
@@ -177,8 +177,10 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
             _ => throw new ArgumentOutOfRangeException()
         };
 
-        foreach ((CacheScope cacheScope, ConcurrentDictionary<CacheEntry, object?> cache) in _cacheEntries)
+        for (var index = 0; index < _cacheEntries.Length; index++)
         {
+            ConcurrentDictionary<CacheEntry, object?> cache = _cacheEntries[index];
+            var cacheScope = CacheScopeIndexes.ToScope(index);
             if ((toDispose & cacheScope) == 0)
             {
                 continue;
@@ -229,7 +231,7 @@ public partial class ScopeCache
             throw new InvalidOperationException($"Parameter of type {typeof(T)} was not registered as a cachedobjparameter");
         }
 
-        _cacheEntries[CacheScope.ConnectionCache][new(new(typeof(T), null), DefaultImplementationNumber)] = service;
+        _cacheEntries[CacheScopeIndexes.ToIndex(CacheScope.ConnectionCache)][new(new(typeof(T), null), DefaultImplementationNumber)] = service;
     }
 
     public void EnsureEachSatisfied()
@@ -242,7 +244,7 @@ public partial class ScopeCache
         foreach (IServiceDescription description in EnumerateCachedParameters())
         {
             Type loadServiceContract = description.LoadServiceContract();
-            if (!_cacheEntries[CacheScope.ConnectionCache].ContainsKey(new(new(loadServiceContract, null), DefaultImplementationNumber)))
+            if (!_cacheEntries[CacheScopeIndexes.ToIndex(CacheScope.ConnectionCache)].ContainsKey(new(new(loadServiceContract, null), DefaultImplementationNumber)))
             {
                 throw new InvalidOperationException($"service of type {loadServiceContract} was not cached on scope");
             }
