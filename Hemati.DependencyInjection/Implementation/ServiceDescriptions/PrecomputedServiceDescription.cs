@@ -9,6 +9,11 @@ namespace Hemati.DependencyInjection.Implementation.ServiceDescriptions;
 
 public class PrecomputedServiceDescription(PrecomputedServiceDescriptionData serviceDescriptionData) : ServiceDescriptionBase(serviceDescriptionData.KeyLikeContract)
 {
+    private Type? _contractType;
+    private Type? _implType;
+    private BaseServiceKey? _key;
+    private Dictionary<string, object?>? _metadata;
+
     private void ThrowIfNull([NotNull] Type? item, string message)
     {
         if (item is not null) return;
@@ -53,49 +58,54 @@ public class PrecomputedServiceDescription(PrecomputedServiceDescriptionData ser
 
     public override Dictionary<string, object?> GetMetadata()
     {
-        Dictionary<string, object?> res = serviceDescriptionData.Metadata ?? new();
-        if (serviceDescriptionData.CustomAttributeType is { } attrTypeName)
+        return _metadata ??= Create();
+
+        Dictionary<string, object?> Create()
         {
-            (Type type, ExportAttribute instance) = LoadCustomAttribute(attrTypeName);
-            foreach (PropertyInfo propertyInfo in type.GetProperties())
+            Dictionary<string, object?> res = serviceDescriptionData.Metadata ?? new();
+            if (serviceDescriptionData.CustomAttributeType is { } attrTypeName)
             {
-                if (propertyInfo.DeclaringType != type)
+                (Type type, ExportAttribute instance) = LoadCustomAttribute(attrTypeName);
+                foreach (PropertyInfo propertyInfo in type.GetProperties())
                 {
-                    continue;
+                    if (propertyInfo.DeclaringType != type)
+                    {
+                        continue;
+                    }
+
+                    res[propertyInfo.Name] = propertyInfo.GetValue(instance);
                 }
-
-                res[propertyInfo.Name] = propertyInfo.GetValue(instance);
             }
-        }
 
-        return res;
+            return res;
+        }
     }
 
     public override BaseServiceKey GetBaseServiceKey()
     {
-        return IterateAllServiceContractTypePossibilities<BaseServiceKey>(
-         ifSpecified: contract => new(contract, StringContract),
-         ifCustomAttributeSpecified: customAttr => LoadCustomAttribute(customAttr) is { Instance.ContractType: { } type }
-          ? new(type, StringContract)
-          : new(serviceDescriptionData.ImplementationType, StringContract),
-         ifNotSpecified: data => new(data.ImplementationType, StringContract)
+        return _key ??= IterateAllServiceContractTypePossibilities<BaseServiceKey>(
+            ifSpecified: contract => new(contract, StringContract),
+            ifCustomAttributeSpecified: customAttr => LoadCustomAttribute(customAttr) is { Instance.ContractType: { } type }
+                ? new(type, StringContract)
+                : new(serviceDescriptionData.ImplementationType, StringContract),
+            ifNotSpecified: data => new(data.ImplementationType, StringContract)
         );
     }
 
     public override Type LoadServiceContract()
     {
-        return IterateAllServiceContractTypePossibilities<Type>(
-         ifSpecified: contract => LoadTypeFromNameOrThrow(contract, "type contract"),
-         ifCustomAttributeSpecified: customAttr => LoadCustomAttribute(customAttr).Instance.ContractType ?? LoadTypeFromNameOrThrow(serviceDescriptionData.ImplementationType, "type contract"),
-         ifNotSpecified: data => LoadTypeFromNameOrThrow(data.ImplementationType, "type contract")
+        return _contractType ??= IterateAllServiceContractTypePossibilities<Type>(
+            ifSpecified: contract => LoadTypeFromNameOrThrow(contract, "type contract"),
+            ifCustomAttributeSpecified: customAttr => LoadCustomAttribute(customAttr).Instance.ContractType ?? LoadTypeFromNameOrThrow(serviceDescriptionData.ImplementationType, "type contract"),
+            ifNotSpecified: data => LoadTypeFromNameOrThrow(data.ImplementationType, "type contract")
         );
     }
 
     public override HbServiceLifetime GetServiceScope() => serviceDescriptionData.CreationPolicy;
 
-    public override string? Tag => serviceDescriptionData.Tag;
+    public override string Tag => serviceDescriptionData.Tag;
 
     public override bool IsImplementationType => true;
 
-    protected override Type LoadImplementationTypeCore() => LoadTypeFromNameOrThrow(serviceDescriptionData.ImplementationType, "implementation type");
+    protected override Type LoadImplementationTypeCore() => _implType ??= LoadTypeFromNameOrThrow(serviceDescriptionData.ImplementationType, "implementation type");
 }

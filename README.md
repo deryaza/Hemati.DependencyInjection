@@ -7,7 +7,6 @@ TODO:
 - think of more tests that uses lib as mef replacement kinda
 - move LazyHelper to IL generation
 - implement IExporter that exports to binary-format-like files and implement loading from that
-- cache ALL results of reflection calls (Type.GetType etc.) binding IS EXPENSIVE!!!
 
 ## License
 
