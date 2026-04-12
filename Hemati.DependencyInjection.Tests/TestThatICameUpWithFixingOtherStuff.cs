@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
+using System.ComponentModel.Composition;
 using Hemati.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -108,6 +109,71 @@ public class TestThatICameUpWithFixingOtherStuff
         Assert.NotNull(a);
     }
 
+    [Fact]
+    public void lazy_resolves()
+    {
+        var sp = Setup(sc => sc.AddTransient<TransientCls>());
+        var transientCls = sp.GetService<Lazy<TransientCls>>();
+        Assert.NotNull(transientCls);
+        Assert.IsType<TransientCls>(transientCls.Value);
+    }
+
+    [Fact]
+    public void export_factory_resolves()
+    {
+        var sp = Setup(sc => sc.AddTransient<TransientCls>());
+        var transientCls = sp.GetService<ExportFactory<TransientCls, Object>>();
+        Assert.NotNull(transientCls);
+        Assert.IsType<TransientCls>(transientCls.CreateExport().Value);
+    }
+
+    [Fact]
+    public void export_factory_enumerable_resolves()
+    {
+        var sp = Setup(sc =>
+            sc.AddTransient<IService, TransientCls>()
+                .AddTransient<IService, SingletonCls>()
+        );
+        var transientCls = sp.GetServices<ExportFactory<IService, Object>>();
+
+        Assert.NotNull(transientCls);
+
+        ExportFactory<IService, object>[] exportFactories = transientCls.ToArray();
+        Assert.Equal(exportFactories.Length, 2);
+        Assert.IsType<TransientCls>(exportFactories[0].CreateExport().Value);
+        Assert.IsType<SingletonCls>(exportFactories[1].CreateExport().Value);
+    }
+
+    [Fact]
+    public void lazy_enumerable_resolves()
+    {
+        var sp = Setup(sc =>
+            sc.AddTransient<IService, TransientCls>()
+                .AddTransient<IService, SingletonCls>()
+        );
+        var transientCls = sp.GetServices<Lazy<IService>>();
+
+        Assert.NotNull(transientCls);
+
+        var exportFactories = transientCls.ToArray();
+        Assert.Equal(exportFactories.Length, 2);
+        Assert.IsType<TransientCls>(exportFactories[0].Value);
+        Assert.IsType<SingletonCls>(exportFactories[1].Value);
+    }
+
+    [Fact]
+    public void inject_lazy_enumerable()
+    {
+        var sp = Setup(sc =>
+            sc.AddTransient<IService, ScopedCls>()
+                .AddTransient<IService, TransientCls>()
+                .AddTransient<IService, SingletonCls>()
+        );
+
+        Lazy<IService[]> foo = sp.GetService<Lazy<IService[]>>();
+        Assert.NotNull(foo);
+    }
+
     class SingletonThatThrows
     {
         private static int count;
@@ -121,17 +187,19 @@ public class TestThatICameUpWithFixingOtherStuff
         }
     }
 
-    class ScopedCls(IServiceProvider provider)
+    class ScopedCls(IServiceProvider provider) : IService
     {
         public IServiceProvider Sp { get; } = provider;
     }
 
-    class SingletonCls(ScopedCls scopedCls)
+    class SingletonCls(ScopedCls scopedCls) : IService
     {
         public ScopedCls Cls { get; } = scopedCls;
     }
 
-    class TransientCls
+    class TransientCls : IService
     {
     }
+
+    interface IService;
 }

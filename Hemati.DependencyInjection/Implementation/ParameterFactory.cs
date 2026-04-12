@@ -189,6 +189,11 @@ public class ParameterFactory
         {
             parameter = new InternalParameter(((InternalServiceDescription)serviceDescription).Kind, serviceDescription.LoadServiceContract());
         }
+        else if (serviceDescription.IsLazy)
+        {
+            LazyServiceDescription lazyServiceDescription = (LazyServiceDescription)serviceDescription;
+            parameter = new LazyParameter(serviceDescription.LoadServiceContract(), lazyServiceDescription.NonLazyType, lazyServiceDescription.NonLazyService, lazyServiceDescription.MetadataType, lazyServiceDescription.MetadataConstructorInfo);
+        }
         else
         {
             throw new InvalidOperationException($"Can't find a way to implement {serviceDescription}.");

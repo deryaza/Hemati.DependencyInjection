@@ -384,6 +384,7 @@ public class ControlExamples
         public bool IsImplementationType { get; }
         public bool IsEnumerableType { get; }
         public bool IsInternal { get; }
+        public bool IsLazy { get; }
 
         public BaseServiceKey GetBaseServiceKey()
         {

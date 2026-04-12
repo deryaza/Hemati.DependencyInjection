@@ -14,6 +14,7 @@ public interface IServiceDescription
     bool IsImplementationType { get; }
     bool IsEnumerableType { get; }
     bool IsInternal { get; }
+    bool IsLazy { get; }
     Dictionary<string, object?> GetMetadata();
     BaseServiceKey GetBaseServiceKey();
     bool SatisfiesStringContract(string? contract);

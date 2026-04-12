@@ -136,7 +136,7 @@ public partial class ServicesDescriptor
 
         if (!requestServiceType.IsGenericType || requestServiceType.IsGenericTypeDefinition)
         {
-            return Array.Empty<IServiceDescription>();
+            return [];
         }
 
         Type[] genericArguments = requestServiceType.GetGenericArguments();
@@ -152,19 +152,7 @@ public partial class ServicesDescriptor
                 IServiceDescription serviceDescription = descriptions[index];
                 Debug.Assert(index == GetImplementationNumber(serviceDescription));
 
-                int copy = index;
-                AspNetServiceDescriptorBasedServiceDescription description = new(
-                    new(
-                        requestServiceType,
-                        sp =>
-                        {
-                            MethodInfo methodInfo = typeof(LazyHelper).GetMethod(nameof(LazyHelper.CreateFunction)) ?? throw new InvalidOperationException();
-                            object res = methodInfo.MakeGenericMethod(genericArguments).Invoke(null, [sp, serviceDescription, copy]) ?? throw new InvalidOperationException();
-                            return res;
-                        },
-                        ServiceLifetime.Transient)
-                );
-                result[index] = description;
+                result[index] = new LazyServiceDescription(requestServiceType, serviceType, serviceDescription, null, null);
             }
 
             return result;
@@ -188,19 +176,7 @@ public partial class ServicesDescriptor
                 IServiceDescription serviceDescription = descriptions[index];
                 Debug.Assert(index == GetImplementationNumber(serviceDescription));
 
-                int copy = index;
-                AspNetServiceDescriptorBasedServiceDescription description = new(
-                    new(
-                        requestServiceType,
-                        sp =>
-                        {
-                            MethodInfo methodInfo = typeof(LazyHelper).GetMethod(nameof(LazyHelper.CreateExportFactory)) ?? throw new InvalidOperationException();
-                            object res = methodInfo.MakeGenericMethod(genericArguments).Invoke(null, [sp, serviceDescription, copy, metadataProxyType, ctor]) ?? throw new InvalidOperationException();
-                            return res;
-                        },
-                        ServiceLifetime.Transient
-                    ));
-                result[index] = description;
+                result[index] = new LazyServiceDescription(requestServiceType, serviceType, serviceDescription, metadataProxyType, ctor);
             }
 
             return result;
@@ -314,94 +290,5 @@ public partial class ServicesDescriptor
         {
             Populate(serviceDescriptor);
         }
-    }
-}
-
-file static class LazyHelper
-{
-    private static readonly Action EmptyAction = () => { };
-
-    public static Lazy<T> CreateFunction<T>(IServiceProvider sp, IServiceDescription description, int implementationNumber)
-    {
-        return new(() =>
-        {
-            switch (sp)
-            {
-                case ServiceResolver sr:
-                {
-                    if (sr.Activator.GetService(description, sr.Root, sr) is not T result)
-                    {
-                        throw new InvalidOperationException($"Failed to activate service {description.LoadServiceContract()} with implementation number {implementationNumber}");
-                    }
-
-                    return result;
-                }
-                case ScopeCache sc:
-                {
-                    if (sc.Activator.GetService(description, sc, sc) is not T result)
-                    {
-                        throw new InvalidOperationException($"Failed to activate service {description.LoadServiceContract()} with implementation number {implementationNumber}");
-                    }
-
-                    return result;
-                }
-            }
-
-            throw new InvalidOperationException("Service provider was not ServiceResolver or ScopeCache");
-        });
-    }
-
-    public static ExportFactory<T, TMetadata> CreateExportFactory<T, TMetadata>(
-        IServiceProvider sp,
-        IServiceDescription description,
-        int implementationNumber,
-        Type metadataProxyType,
-        ConstructorInfo constructorInfo)
-    {
-        TMetadata metadata;
-        Dictionary<string, object?> serviceMetadata = description.GetMetadata();
-        if (metadataProxyType == typeof(Dictionary<string, object>))
-        {
-            metadata = (TMetadata)(object)serviceMetadata;
-        }
-        else
-        {
-            object metadataProxy = constructorInfo.Invoke([]);
-            foreach ((string key, object? value) in serviceMetadata)
-            {
-                metadataProxyType.GetProperty(key)?.SetValue(metadataProxy, value);
-            }
-
-            metadata = (TMetadata)metadataProxy;
-        }
-
-        return new(
-            () =>
-            {
-                switch (sp)
-                {
-                    case ServiceResolver sr:
-                    {
-                        if (sr.Activator.GetService(description, sr.Root, sr) is not T result)
-                        {
-                            throw new InvalidOperationException($"Failed to activate service {description.LoadServiceContract()} with implementation number {implementationNumber}");
-                        }
-
-                        return (result, _emptyAction: EmptyAction).ToTuple();
-                    }
-                    case ScopeCache sc:
-                    {
-                        if (sc.Activator.GetService(description, sc, sc) is not T result)
-                        {
-                            throw new InvalidOperationException($"Failed to activate service {description.LoadServiceContract()} with implementation number {implementationNumber}");
-                        }
-
-                        return (result, _emptyAction: EmptyAction).ToTuple();
-                    }
-                }
-
-                throw new InvalidOperationException("Service provider was not ServiceResolver or ScopeCache");
-            },
-            metadata);
     }
 }

@@ -2,10 +2,7 @@ yay, another dependency injection library :)
 
 TODO:
 
-- make IEnumerable lazy. motivation is that there are a lot of ExportFactory importing common services but pre creating
-  them (like around 50 instances) every time is expensive
 - think of more tests that uses lib as mef replacement kinda
-- move LazyHelper to IL generation
 - implement IExporter that exports to binary-format-like files and implement loading from that
 
 ## License

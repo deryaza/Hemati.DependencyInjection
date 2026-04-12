@@ -22,6 +22,8 @@ public abstract class ServiceBuilder<TContext> : IServiceBuilder
 
     protected abstract void VisitInternal(InternalParameter ip, TContext context);
 
+    protected abstract void VisitLazy(LazyParameter lazy, TContext context);
+
     protected virtual void VisitMain(Parameter parameter, TContext context)
     {
         switch (parameter)
@@ -44,6 +46,9 @@ public abstract class ServiceBuilder<TContext> : IServiceBuilder
             case InternalParameter ip:
                 VisitInternal(ip, context);
                 return;
+            case LazyParameter lazyParameter:
+                VisitLazy(lazyParameter, context);
+                break;
             case UnknownParameter up:
                 VisitUnknown(up, context);
                 break;

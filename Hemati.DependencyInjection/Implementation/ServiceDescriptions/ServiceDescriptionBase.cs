@@ -14,6 +14,7 @@ public abstract class ServiceDescriptionBase(string? stringContract = null) : IS
     public virtual bool IsImplementationType => false;
     public virtual bool IsEnumerableType => false;
     public virtual bool IsInternal => false;
+    public virtual bool IsLazy => false;
     public virtual string? StringContract => stringContract;
     public virtual bool SatisfiesStringContract(string? contract) => string.Equals(stringContract, contract, StringComparison.OrdinalIgnoreCase);
     public virtual bool IsSameContractType(Type type) => GetBaseServiceKey().Equals(new(type, null));

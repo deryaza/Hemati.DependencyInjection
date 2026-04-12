@@ -36,6 +36,16 @@ public class IlServiceBuilder : ServiceBuilder<IlServiceBuilder.IlContext>
         public ILGenerator Generator { get; }
         public List<object> Constants { get; }
         public List<Func<IServiceProvider, object?>> Factories { get; }
+
+        public void AddAndLoadConstant<T>(T constant, ILGenerator il) where T : notnull
+        {
+            int index = Constants.Count;
+            Constants.Add(constant);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldfld, ConstantsField);
+            il.Emit(OpCodes.Ldc_I4, index);
+            il.Emit(OpCodes.Ldelem, typeof(T));
+        }
     }
 
     public override Func<ScopeCache, IServiceProviderExtended, object?> Build(Parameter parameter)
@@ -150,7 +160,7 @@ public class IlServiceBuilder : ServiceBuilder<IlServiceBuilder.IlContext>
             {
                 il.Emit(OpCodes.Ldstr, baseServiceKey.StringContract);
             }
-            
+
             il.Emit(OpCodes.Ldc_I4, baseServiceKey.GetHashCode());
 
             il.Emit(OpCodes.Newobj, BaseServiceKeyConstructorInfo);
@@ -423,4 +433,27 @@ public class IlServiceBuilder : ServiceBuilder<IlServiceBuilder.IlContext>
     }
 
     protected virtual Func<IServiceProvider, object?>? GetUnknownParameterHandler(UnknownParameter parameter) => null;
+
+    private static readonly MethodInfo LazyHelperCreateFunction = typeof(LazyHelper).GetMethod(nameof(LazyHelper.CreateFunction))!;
+    private static readonly MethodInfo LazyHelperCreateExportFactory = typeof(LazyHelper).GetMethod(nameof(LazyHelper.CreateExportFactory))!;
+
+    protected override void VisitLazy(LazyParameter lazy, IlContext context)
+    {
+        ILGenerator il = context.Generator;
+
+        MethodInfo createLazyForType =
+            lazy.IsExportFactory
+                ? LazyHelperCreateExportFactory.MakeGenericMethod(lazy.NonLazyType, lazy.MetadataType)
+                : LazyHelperCreateFunction.MakeGenericMethod(lazy.NonLazyType);
+
+        il.Emit(OpCodes.Ldarg_2);
+        context.AddAndLoadConstant(lazy.NonLazyDescription, il);
+        if (lazy.IsExportFactory)
+        {
+            context.AddAndLoadConstant(lazy.MetadataType, il);
+            context.AddAndLoadConstant(lazy.MetadataConstructorInfo, il);
+        }
+
+        il.EmitCall(OpCodes.Call, createLazyForType, null);
+    }
 }
