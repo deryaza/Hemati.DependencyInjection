@@ -170,7 +170,7 @@ public class TestThatICameUpWithFixingOtherStuff
                 .AddTransient<IService, SingletonCls>()
         );
 
-        Lazy<IService[]> foo = sp.GetService<Lazy<IService[]>>();
+        var foo = sp.GetService<Lazy<IEnumerable<IService>>>();
         Assert.NotNull(foo);
     }
 

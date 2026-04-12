@@ -3,7 +3,6 @@
 using System.Collections.Concurrent;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
-using System.Reflection;
 using Hemati.DependencyInjection.Implementation.Parameters;
 using Hemati.DependencyInjection.Implementation.ServiceDescriptions;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,57 +27,13 @@ public partial class ServicesDescriptor
 
     protected virtual IServiceDescription? TryGetServiceDescriptionCore(FindServiceRequest request)
     {
-        Type contractType = request.ServiceType;
         IServiceDescription? anyDescription = GetEveryServiceDescriptions(request).LastOrDefault();
         if (anyDescription is not null)
         {
             return anyDescription;
         }
 
-        IServiceDescription ConstructManyForCollectionType(Type desiredServiceContract, Type? collectionType)
-        {
-            IServiceDescription[] descriptionsOfThatContract = GetEveryServiceDescriptions(new(desiredServiceContract)).ToArray();
-            return new EnumerableDescription(contractType, desiredServiceContract, descriptionsOfThatContract, collectionType);
-        }
-
-        IServiceDescription? TryConstructEnumerable(Type openGenericServiceType, Type desiredServiceContract, Type collectionType, bool isExplicit)
-        {
-            if (openGenericServiceType == typeof(IEnumerable<>))
-            {
-                return ConstructManyForCollectionType(desiredServiceContract, null);
-            }
-
-            if (!isExplicit)
-            {
-                return null;
-            }
-
-            if (openGenericServiceType == typeof(List<>)
-                || openGenericServiceType == typeof(IList<>))
-            {
-                return ConstructManyForCollectionType(
-                    desiredServiceContract,
-                    openGenericServiceType == typeof(List<>)
-                        ? openGenericServiceType
-                        : typeof(List<>).MakeGenericType(desiredServiceContract));
-            }
-
-            return null;
-        }
-
-        return request switch
-        {
-            { ServiceType.IsConstructedGenericType: true }
-                when request.ServiceType.GetGenericTypeDefinition() is { } gdesc
-                     && contractType.GetGenericArguments() is [Type singleType] => request switch
-                {
-                    { IsImportManyRequest: true } => TryConstructEnumerable(gdesc, singleType, request.ServiceType, true),
-                    { IsImportManyRequest: false } => TryConstructEnumerable(gdesc, singleType, request.ServiceType, false),
-                },
-            { IsImportManyRequest: true, ServiceType.IsArray: true }
-                when request.ServiceType.GetElementType() is { } el => ConstructManyForCollectionType(el, request.ServiceType),
-            _ => null
-        };
+        return null;
     }
 
     public void Clear() => _lookupCache.Clear();
@@ -182,6 +137,59 @@ public partial class ServicesDescriptor
             return result;
         }
 
+        IServiceDescription? TryGetIEnumerable()
+        {
+            IServiceDescription ConstructManyForCollectionType(Type desiredServiceContract, Type? collectionType)
+            {
+                IServiceDescription[] descriptionsOfThatContract = GetEveryServiceDescriptions(new(desiredServiceContract)).ToArray();
+                return new EnumerableDescription(requestServiceType, desiredServiceContract, descriptionsOfThatContract, collectionType);
+            }
+
+            IServiceDescription? TryConstructEnumerable(Type openGenericServiceType, Type desiredServiceContract, bool isExplicit)
+            {
+                if (openGenericServiceType == typeof(IEnumerable<>))
+                {
+                    return ConstructManyForCollectionType(desiredServiceContract, null);
+                }
+
+                if (!isExplicit)
+                {
+                    return null;
+                }
+
+                if (openGenericServiceType == typeof(List<>)
+                    || openGenericServiceType == typeof(IList<>))
+                {
+                    return ConstructManyForCollectionType(
+                        desiredServiceContract,
+                        openGenericServiceType == typeof(List<>)
+                            ? openGenericServiceType
+                            : typeof(List<>).MakeGenericType(desiredServiceContract));
+                }
+
+                return null;
+            }
+
+            return request switch
+            {
+                { ServiceType.IsConstructedGenericType: true }
+                    when request.ServiceType.GetGenericTypeDefinition() is { } gdesc
+                         && requestServiceType.GetGenericArguments() is [Type singleType] => request switch
+                    {
+                        { IsImportManyRequest: true } => TryConstructEnumerable(gdesc, singleType, true),
+                        { IsImportManyRequest: false } => TryConstructEnumerable(gdesc, singleType, false),
+                    },
+                { IsImportManyRequest: true, ServiceType.IsArray: true }
+                    when request.ServiceType.GetElementType() is { } el => ConstructManyForCollectionType(el, request.ServiceType),
+                _ => null
+            };
+        }
+
+        if (TryGetIEnumerable() is { } enumerableDescription)
+        {
+            return [enumerableDescription];
+        }
+
         IEnumerable<IServiceDescription>? TryGetOpenGenericImpl(Type openGenericDefinition, Type desiredServiceContract)
         {
             FindServiceRequest findServiceRequest = new(openGenericDefinition) { StringContract = request.StringContract };
@@ -219,7 +227,7 @@ public partial class ServicesDescriptor
             return openGenericImplementations;
         }
 
-        return Array.Empty<IServiceDescription>();
+        return [];
     }
 
     public ImplementationInformation GetImplementationInformation(IServiceDescription serviceDescription)
