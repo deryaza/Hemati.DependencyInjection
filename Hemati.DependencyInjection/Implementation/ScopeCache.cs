@@ -1,7 +1,6 @@
 ﻿// SPDX-License-Identifier: LGPL-3.0-only
 
 using System.Collections.Concurrent;
-using System.Collections.Frozen;
 using System.Diagnostics;
 using Hemati.DependencyInjection.Implementation.Core;
 using Hemati.DependencyInjection.Implementation.ServiceDescriptions;
@@ -122,12 +121,12 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
     {
         var entries = new ConcurrentDictionary<CacheEntry, object?>[4];
 
+        // TODO: maybe pooling of ConcurrentDictionaries?
         entries[CacheScopeIndexes.Singleton] = (scope & CacheScope.Singleton) != 0 ? _cacheEntries[CacheScopeIndexes.Singleton] : new();
         entries[CacheScopeIndexes.Scoped] = (scope & CacheScope.Scoped) != 0 ? _cacheEntries[CacheScopeIndexes.Scoped] : new();
         entries[CacheScopeIndexes.ConnectionWide] = (scope & CacheScope.ConnectionWide) != 0 ? _cacheEntries[CacheScopeIndexes.ConnectionWide] : new();
         entries[CacheScopeIndexes.ConnectionCache] = (scope & CacheScope.ConnectionCache) != 0 ? _cacheEntries[CacheScopeIndexes.ConnectionCache] : new();
 
-        // TODO: optimize
         return new(
             Activator,
             entries,
@@ -169,41 +168,47 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
             return;
         }
 
-        CacheScope toDispose = _scopeRole switch
+        static void DoDispose(ConcurrentDictionary<CacheEntry, object?> values)
         {
-            ScopeRole.RootScope => CacheScope.Singleton | CacheScope.Scoped | CacheScope.Transient | CacheScope.ConnectionWide,
-            ScopeRole.ParentScope => CacheScope.Scoped | CacheScope.Transient | CacheScope.ConnectionCache | CacheScope.ConnectionWide,
-            ScopeRole.ChildScope => CacheScope.Scoped | CacheScope.Transient,
-            _ => throw new ArgumentOutOfRangeException()
-        };
-
-        for (var index = 0; index < _cacheEntries.Length; index++)
-        {
-            ConcurrentDictionary<CacheEntry, object?> cache = _cacheEntries[index];
-            var cacheScope = CacheScopeIndexes.ToScope(index);
-            if ((toDispose & cacheScope) == 0)
+            foreach (KeyValuePair<CacheEntry, object?> implementation in values)
             {
-                continue;
-            }
-
-            foreach ((_, object? implementation) in cache)
-            {
-                try
+                object? implementationValue = implementation.Value;
+                if (implementationValue is IDisposable disposableImplementation)
                 {
-                    if (implementation is IDisposable disposableImplementation)
+                    try
                     {
                         disposableImplementation.Dispose();
                     }
-                    else if (implementation is IAsyncDisposable asyncDisposableImplementation)
+                    catch (Exception)
+                    {
+                        // Dispose shouldn't throw
+                    }
+                }
+                else if (implementationValue is IAsyncDisposable asyncDisposableImplementation)
+                {
+                    try
                     {
                         asyncDisposableImplementation.DisposeAsync().AsTask().GetAwaiter().GetResult();
                     }
-                }
-                catch (Exception)
-                {
-                    // Dispose shouldn't throw
+                    catch (Exception)
+                    {
+                        // Dispose shouldn't throw
+                    }
                 }
             }
+        }
+
+        if (_scopeRole == ScopeRole.RootScope)
+        {
+            DoDispose(_cacheEntries[CacheScopeIndexes.Singleton]);
+        }
+
+        DoDispose(_cacheEntries[CacheScopeIndexes.Scoped]);
+
+        if (_scopeRole <= ScopeRole.ParentScope)
+        {
+            DoDispose(_cacheEntries[CacheScopeIndexes.ConnectionWide]);
+            DoDispose(_cacheEntries[CacheScopeIndexes.ConnectionCache]);
         }
 
         Interlocked.Exchange(ref _disposingIfOne, 0);
