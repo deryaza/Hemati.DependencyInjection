@@ -52,14 +52,16 @@ public static class MefDiInfoDiscoverer
             typeDiInfo.CustomAttributeArgs = attributeData.ConstructorArguments.Select(DiInfoDiscoverer.ToMetadataExpression).ToArray();
         }
 
+#if DEBUG
         if (attributeData.NamedArguments.Length > 0)
         {
-            typeDiInfo.CustomAttributeParameterAssigmentsArgs ??= new();
+            typeDiInfo.CustomAttributeParameterAssignmentsArgs ??= new();
             foreach (var attributeDataNamedArgument in attributeData.NamedArguments)
             {
-                typeDiInfo.CustomAttributeParameterAssigmentsArgs[attributeDataNamedArgument.Key] = attributeDataNamedArgument.Value.ToMetadataExpression();
+                typeDiInfo.CustomAttributeParameterAssignmentsArgs[attributeDataNamedArgument.Key] = attributeDataNamedArgument.Value.ToMetadataExpression();
             }
         }
+#endif
 
         return true;
     }
@@ -88,7 +90,7 @@ public static class MefDiInfoDiscoverer
         }
 
         string key = (string)attrData.ConstructorArguments[0].Value!;
-        
+
         TypedConstant constant = attrData.ConstructorArguments[1];
         MetadataExpression metadataValue = DiInfoDiscoverer.ToMetadataExpression(constant);
 
@@ -96,4 +98,3 @@ public static class MefDiInfoDiscoverer
         info.Metadata[key] = metadataValue;
     }
 }
-

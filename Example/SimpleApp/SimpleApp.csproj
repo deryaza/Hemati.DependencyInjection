@@ -1,13 +1,31 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Hemati.DependencyInjection" Version="$(HTMainPackageVersion)" />
-  </ItemGroup>
+    <PropertyGroup>
+        <_HematiIntermediateDir>$(MSBuildThisFileDirectory)ComponentSystem\</_HematiIntermediateDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <CreateDirectory Include="$(_HematiIntermediateDir)"/>
+        <CompilerVisibleProperty Include="_HematiIntermediateDir"/>
+    </ItemGroup>
+    <ItemGroup>
+        <!--<PackageReference Include="Hemati.DependencyInjection" Version="$(HTMainPackageVersion)" />-->
+        <ProjectReference Include="..\..\Hemati.DependencyInjection\Hemati.DependencyInjection.csproj"/>
+        <ProjectReference
+                OutputItemType="Analyzer"
+                ReferenceOutputAssembly="false"
+                Include="..\..\Hemati.DependencyInjection.Analyzer\Hemati.DependencyInjection.Analyzer.csproj"/>
+
+        <None Include="$(_HematiIntermediateDir)service-descriptions.precomputed">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>$(TargetName).Services.precomputed</Link>
+        </None>
+    </ItemGroup>
 </Project>

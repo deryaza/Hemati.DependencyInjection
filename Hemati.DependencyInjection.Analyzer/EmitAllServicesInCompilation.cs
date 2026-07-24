@@ -1,15 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-using System.Diagnostics;
-
 namespace Hemati.DependencyInjection.Analyzer;
 
-using System;
-using System.CodeDom.Compiler;
 using System.Collections.Immutable;
-using System.Linq;
-using System.Text;
-using Hemati.DependencyInjection.Implementation.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -39,7 +32,7 @@ public class EmitAllServicesInCompilation : DiagnosticAnalyzer
         NamespaceVisitor visitor = new(context.Compilation);
         visitor.Visit(root);
 
-        IExporter exporter = new CSharpCodeExporter();
+        IExporter exporter = new SomeBinaryFormatExporter();
         exporter.ExportPath = val;
         exporter.Export(visitor.AllTypesThatExportSomething);
     }

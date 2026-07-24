@@ -6,6 +6,6 @@ public interface IExporter
 {
     void Export(Dictionary<string, OneOf> allTypesThatExportSomething);
 
-    string ExportPath { get; set; }
+    string? ExportPath { get; set; }
 }
 

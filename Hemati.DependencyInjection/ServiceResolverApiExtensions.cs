@@ -1,6 +1,5 @@
 ﻿// SPDX-License-Identifier: LGPL-3.0-only
 
-using System.Reflection;
 using Hemati.DependencyInjection.Implementation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,24 +19,5 @@ public static class ServiceResolverApiExtensions
                     new ConstructorVisitor()
                 )
             ));
-    }
-
-    public static PrecomputedServiceDescriptionData[] LoadDescriptions(string? precompAssemblyPostfix = null)
-    {
-        precompAssemblyPostfix = "Precomp";
-        List<PrecomputedServiceDescriptionData> res = [];
-        var directory = AppContext.BaseDirectory;
-        foreach (var assembly in Directory.EnumerateFiles(directory, $"*{precompAssemblyPostfix}.dll"))
-        {
-            var a = Assembly.LoadFrom(assembly);
-            var type = a.GetType("Hemati.PreGeneratedInfo.DllMasterDiInfo");
-            if (type is null) continue;
-            var method = type.GetMethod("GetExportDescriptions");
-            if (method is null) continue;
-            var result = (PrecomputedServiceDescriptionData[])method.Invoke(null, null);
-            res.AddRange(result);
-        }
-
-        return res.ToArray();
     }
 }

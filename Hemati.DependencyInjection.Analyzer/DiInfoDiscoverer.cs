@@ -55,6 +55,7 @@ public static class DiInfoDiscoverer
                 oneOf = new(implType, null);
                 continue;
             }
+
             multipleInfos ??= [single];
             multipleInfos.Add(implType);
         }
@@ -66,14 +67,9 @@ public static class DiInfoDiscoverer
     {
         return constant.Kind switch
         {
-            TypedConstantKind.Primitive => constant.Value switch
-            {
-                true => new(MetadataExpressionType.Primitive, "true", constant.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
-                false => new(MetadataExpressionType.Primitive, "false", constant.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
-                _ => new(MetadataExpressionType.Primitive, constant.Value?.ToString(), constant.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
-            },
-            TypedConstantKind.Enum => new(MetadataExpressionType.Enum, constant.Value!.ToString(), constant.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
-            TypedConstantKind.Type => throw new NotImplementedException(),
+            TypedConstantKind.Primitive => new(MetadataExpressionType.Primitive, constant.Value, constant.Type!),
+            TypedConstantKind.Enum => new(MetadataExpressionType.Enum, constant.Value, constant.Type!),
+            TypedConstantKind.Type => new(MetadataExpressionType.TypeOf, constant.Value, constant.Type!),
             var c => throw new InvalidOperationException($"not supported constant type {c}")
         };
     }
@@ -93,16 +89,29 @@ public struct TypeDiInfo
     public HbServiceLifetime CreationPolicy;
     public string? CustomAttributeType;
     public MetadataExpression[]? CustomAttributeArgs;
-    public Dictionary<string, MetadataExpression>? CustomAttributeParameterAssigmentsArgs;
+#if DEBUG
+    public Dictionary<string, MetadataExpression>? CustomAttributeParameterAssignmentsArgs; // NOTE: Not handled
+#endif
     public Dictionary<string, MetadataExpression>? Metadata;
     public bool IsCorrect => this is { ImplementationType: not null };
 }
 
-public struct MetadataExpression(MetadataExpressionType type, string? expression, string typeExpression) 
+public struct MetadataExpression(MetadataExpressionType type, object? value, ITypeSymbol typeSymbol)
 {
-    public MetadataExpressionType ExpressionType = type;
-    public string TypeExpression = typeExpression;
-    public string? ExpressionToEmit = expression;
+    public MetadataExpressionType ExpressionType => type;
+
+    public string TypeExpression => typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+    public string? ExpressionToEmit => value switch
+    {
+        true => "true",
+        false => "false",
+        ITypeSymbol t => t.ToAssemblyQualifiedName(),
+        _ => value?.ToString(),
+    };
+
+    public object? Value => value;
+    public ITypeSymbol TypeSymbol => typeSymbol;
 }
 
 public enum MetadataExpressionType
@@ -111,4 +120,3 @@ public enum MetadataExpressionType
     Primitive,
     Enum
 }
-
