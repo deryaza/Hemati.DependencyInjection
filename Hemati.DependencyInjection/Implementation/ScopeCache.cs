@@ -104,6 +104,7 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
             }
 
             implementation = createdService;
+            l.Exit();
         }
 
         return true;
@@ -159,11 +160,11 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
 
     #region IDisposable
 
-    private int _disposingIfOne;
+    private int _disposed;
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposingIfOne, 1) == 1)
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
         {
             return;
         }
@@ -211,7 +212,6 @@ public partial class ScopeCache : IServiceProviderExtended, IServiceScope, IConn
             DoDispose(_cacheEntries[CacheScopeIndexes.ConnectionCache]);
         }
 
-        Interlocked.Exchange(ref _disposingIfOne, 0);
     }
 
     #endregion
