@@ -169,9 +169,7 @@ public partial class ServicesDescriptor
                 {
                     return ConstructManyForCollectionType(
                         desiredServiceContract,
-                        openGenericServiceType == typeof(List<>)
-                            ? openGenericServiceType
-                            : typeof(List<>).MakeGenericType(desiredServiceContract));
+                        typeof(List<>).MakeGenericType(desiredServiceContract));
                 }
 
                 return null;

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
+using System.ComponentModel.Composition;
 using Hemati.DependencyInjection;
 using Hemati.DependencyInjection.Implementation;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +9,23 @@ namespace TestProject1;
 
 public class ReviewRegressionTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void ImportManyConstructsListsWithAllRegisteredServices(int count)
+    {
+        var services = new ServiceCollection();
+        var resources = Enumerable.Range(0, count).Select(_ => new Resource()).ToArray();
+        foreach (var resource in resources) services.AddSingleton(resource);
+        services.AddTransient<ListConsumer>();
+        using var provider = CreateProvider(services);
+
+        var consumer = provider.GetRequiredService<ListConsumer>();
+
+        Assert.Equal(resources, consumer.Items);
+        Assert.Equal(resources, consumer.InterfaceItems);
+    }
+
     [Fact]
     public void WaitingCacheReadersReleaseTheActivationLock()
     {
@@ -113,6 +131,12 @@ public class ReviewRegressionTests
 
     private static ServiceResolver CreateProvider(ServiceCollection services) =>
         (ServiceResolver)ServiceResolverApiExtensions.BuildServiceProvider(services, []);
+
+    public class ListConsumer([ImportMany] List<Resource> items, [ImportMany] IList<Resource> interfaceItems)
+    {
+        public List<Resource> Items { get; } = items;
+        public IList<Resource> InterfaceItems { get; } = interfaceItems;
+    }
 
     public class Resource : IDisposable
     {
