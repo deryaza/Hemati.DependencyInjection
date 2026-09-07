@@ -72,9 +72,9 @@ public static class DiInfoDiscoverer
                 false => new(MetadataExpressionType.Primitive, "false", constant.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
                 _ => new(MetadataExpressionType.Primitive, constant.Value?.ToString(), constant.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
             },
-            TypedConstantKind.Enum => new(MetadataExpressionType.Enum, constant.Value!.ToString(), constant.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
-            TypedConstantKind.Type => throw new NotImplementedException(),
-            var c => throw new InvalidOperationException($"not supported constant type {c}")
+            TypedConstantKind.Type => new(MetadataExpressionType.TypeOf, ((ITypeSymbol)constant.Value!).ToAssemblyQualifiedName(), constant.Type!.ToAssemblyQualifiedName()),
+            TypedConstantKind.Enum => new(MetadataExpressionType.Enum, constant.Value!.ToString(), constant.Type!.ToAssemblyQualifiedName()),
+            var c                  => throw new InvalidOperationException($"not supported constant type {c}")
         };
     }
 }

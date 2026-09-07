@@ -57,7 +57,22 @@ internal static class LazyHelper
             object metadataProxy = constructorInfo.Invoke([]);
             foreach ((string key, object? value) in serviceMetadata)
             {
-                metadataProxyType.GetProperty(key)?.SetValue(metadataProxy, value);
+                PropertyInfo? propertyInfo = metadataProxyType.GetProperty(key);
+                if (propertyInfo is null)
+                {
+                    continue;
+                }
+
+                if (!propertyInfo.PropertyType.IsArray)
+                {
+                    propertyInfo.SetValue(metadataProxy, value);
+                    continue;
+                }
+
+                // по сути должен уметь в этом случае несколько значений по одному ключу вставлять
+                Array array = Array.CreateInstance(propertyInfo.PropertyType.GetElementType()!, 1);
+                array.SetValue(value, 0);
+                propertyInfo.SetValue(metadataProxy, array);
             }
 
             metadata = (TMetadata)metadataProxy;

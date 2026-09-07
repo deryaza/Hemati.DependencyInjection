@@ -34,13 +34,13 @@ internal class DependentPropertiesSetter
         il.EmitCall(OpCodes.Call, propertyInfo.SetMethod!, null);
     }
 
-    private Action<DependentPropertiesSetter, IServiceProvider, object, int>? BuildPath(Type type)
+    private static Action<DependentPropertiesSetter, IServiceProvider, object, int>? BuildPath(Type type)
     {
         List<PropertyInfo>? propertyInfos = null;
         Type? t = type;
         while (t is not null && t != typeof(object))
         {
-            foreach (PropertyInfo property in t.GetProperties())
+            foreach (PropertyInfo property in t.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
                 if (property.SetMethod is not null)
                 {

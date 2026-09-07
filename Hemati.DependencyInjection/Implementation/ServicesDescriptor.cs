@@ -3,8 +3,10 @@
 using System.Collections.Concurrent;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
+
 using Hemati.DependencyInjection.Implementation.Parameters;
 using Hemati.DependencyInjection.Implementation.ServiceDescriptions;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Hemati.DependencyInjection.Implementation;
@@ -91,6 +93,11 @@ public partial class ServicesDescriptor
 
         if (!requestServiceType.IsGenericType || requestServiceType.IsGenericTypeDefinition)
         {
+            if (requestServiceType.IsArray && TryGetIEnumerable() is { } enumerableImpl)
+            {
+                return [enumerableImpl];
+            }
+
             return [];
         }
 
@@ -176,7 +183,7 @@ public partial class ServicesDescriptor
                     when request.ServiceType.GetGenericTypeDefinition() is { } gdesc
                          && requestServiceType.GetGenericArguments() is [Type singleType] => request switch
                     {
-                        { IsImportManyRequest: true } => TryConstructEnumerable(gdesc, singleType, true),
+                        { IsImportManyRequest: true }  => TryConstructEnumerable(gdesc, singleType, true),
                         { IsImportManyRequest: false } => TryConstructEnumerable(gdesc, singleType, false),
                     },
                 { IsImportManyRequest: true, ServiceType.IsArray: true }

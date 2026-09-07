@@ -13,17 +13,4 @@
       <PackageReference Include="System.ComponentModel.Composition" Version="8.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
-      <None Remove="build/Hemati.DependencyInjection.targets"/>
-      
-      <None Include="build/Hemati.DependencyInjection.targets">
-        <Pack>true</Pack>
-        <PackagePath>build/</PackagePath>
-      </None>
-      <None Include="build/Hemati.DependencyInjection.Analyzer.dll">
-        <Pack>true</Pack>
-        <PackagePath>build/</PackagePath>
-      </None>
-  </ItemGroup>
-
 </Project>

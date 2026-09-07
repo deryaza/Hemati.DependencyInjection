@@ -22,32 +22,58 @@ public class CSharpCodeExporter : IExporter
 
             string className = baseClassName + "DiInfo";
             string fileName = className + ".cs";
-            filesInCurrentCompilation.Add(fileName);
 
             GenerateCode(indentedTextWriter, className, oneOfTypeDiInfo);
 
             string fullFilePath = Path.Combine(ExportPath, fileName);
-            File.WriteAllText(fullFilePath, sb.ToString());
+            WriteFileIfChanged(fullFilePath, sb);
+            filesInCurrentCompilation.Add(fullFilePath);
+
             sb.Clear();
         }
 
         // generate master type
         {
-            string fileName = "AssemblyMasterDiInfo.cs";
+            const string fileName = "AssemblyMasterDiInfo.cs";
             string fullFilePath = Path.Combine(ExportPath, fileName);
 
             GenerateCommonFile(indentedTextWriter, allTypesThatExportSomething);
-            File.WriteAllText(fullFilePath, sb.ToString());
-            filesInCurrentCompilation.Add(fileName);
+            WriteFileIfChanged(fullFilePath, sb);
+            filesInCurrentCompilation.Add(fullFilePath);
             sb.Clear();
         }
 
-        File.WriteAllLines(Path.Combine(ExportPath, "all-compilation-files.txt"), filesInCurrentCompilation);
+        sb.Clear();
+        foreach (string fileInComp in filesInCurrentCompilation)
+        {
+            sb.AppendLine(fileInComp);
+        }
+
+        WriteFileIfChanged(Path.Combine(ExportPath, "all-compilation-files.txt"), sb);
+    }
+
+    private static void WriteFileIfChanged(string fullFilePath, StringBuilder sb)
+    {
+#pragma warning disable RS1035
+        using FileStream fileStream = File.Open(fullFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+#pragma warning restore RS1035
+        using StreamReader reader = new(fileStream);
+
+        // Кто - умный оптимизируйте...
+        string newContent = sb.ToString();
+        if (reader.ReadToEnd() == newContent)
+        {
+            return;
+        }
+
+        fileStream.SetLength(0);
+        using StreamWriter writer = new(fileStream);
+        writer.Write(newContent);
     }
 
     static void GenerateMethod(IndentedTextWriter sb, TypeDiInfo ti, string methodName)
     {
-        sb.Write("public static PrecomputedServiceDescriptionData ");
+        sb.Write("public static ExportDescription ");
         sb.Write(methodName);
         sb.WriteLine("()");
         sb.WriteLine("{");
@@ -63,7 +89,7 @@ public class CSharpCodeExporter : IExporter
         sb.Write("contractType: ");
         WriteDefaultIfNull(sb, ti.ContractType, WriteQuoted);
         sb.WriteLine(",");
-        sb.Write("creationPolicy: HbServiceLifetime.");
+        sb.Write("creationPolicy: ServerServiceLifetime.");
         sb.Write(ti.CreationPolicy.ToString());
         sb.WriteLine(",");
         sb.Write("customAttributeType: ");
@@ -96,7 +122,7 @@ public class CSharpCodeExporter : IExporter
 
         if (ti.CustomAttributeArgs is null)
         {
-            sb.WriteLine("customAttributeCtorArgsCreator: null,");
+            sb.WriteLine("customAttributeCtorArgsCreator: null");
         }
         else
         {
@@ -114,11 +140,11 @@ public class CSharpCodeExporter : IExporter
             sb.Indent--;
             sb.WriteLine("};");
             sb.Indent--;
-            sb.WriteLine("},");
+            sb.WriteLine("}");
         }
 
-        sb.Write($"tag: ");
-        WriteQuoted(sb, ti.ImplementationType);
+        // sb.Write($"tag: ");
+        // WriteQuoted(sb, ti.ImplementationType);
 
         sb.Indent--;
         sb.WriteLine(");");
@@ -129,8 +155,8 @@ public class CSharpCodeExporter : IExporter
     static void GenerateCode(IndentedTextWriter sb, string className, OneOf ti)
     {
         sb.WriteLine("using System;");
-        sb.WriteLine("using Hemati.DependencyInjection;");
-        sb.WriteLine("using Hemati.DependencyInjection.Implementation.Core;");
+        sb.WriteLine("using Halfblood.Framework.ComponentSystem;");
+        sb.WriteLine("using Halfblood.Framework.ComponentSystem.Server;");
         sb.WriteLine("namespace Hemati.PreGeneratedInfo;");
         sb.Write("internal static class ");
         sb.WriteLine(className);
@@ -212,13 +238,13 @@ public class CSharpCodeExporter : IExporter
     static void GenerateCommonFile(IndentedTextWriter sb, Dictionary<string, OneOf> allTypesThatExportSomething)
     {
         sb.WriteLine("using System;");
-        sb.WriteLine("using Hemati.DependencyInjection;");
-        sb.WriteLine("using Hemati.DependencyInjection.Implementation.Core;");
+        sb.WriteLine("using Halfblood.Framework.ComponentSystem;");
+        sb.WriteLine("using Halfblood.Framework.ComponentSystem.Server;");
         sb.WriteLine("namespace Hemati.PreGeneratedInfo;");
         sb.WriteLine("public static class DllMasterDiInfo");
         sb.WriteLine("{");
         sb.Indent++;
-        sb.WriteLine("public static PrecomputedServiceDescriptionData[] GetExportDescriptions()");
+        sb.WriteLine("public static ExportDescription[] GetExportDescriptions()");
         sb.WriteLine("{");
         sb.Indent++;
         sb.WriteLine("return");

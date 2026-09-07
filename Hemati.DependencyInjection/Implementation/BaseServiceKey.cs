@@ -39,9 +39,11 @@ public struct BaseServiceKey : IEquatable<BaseServiceKey>
     private static string ConvertTypeToString(Type type)
     {
         if (!type.IsGenericType)
+        {
             return $"{type.FullName}, {type.Assembly.GetName().Name}";
+        }
 
-        string argumentsFormated = string.Join(", ", type.GenericTypeArguments.Select(x => $"{ConvertTypeToString(x)}"));
+        string argumentsFormated = string.Join(",", type.GenericTypeArguments.Select(x => $"[{ConvertTypeToString(x)}]"));
         string name = $"{type.Namespace}.{type.Name}[{argumentsFormated}], {type.Assembly.GetName().Name}";
         return name;
     }

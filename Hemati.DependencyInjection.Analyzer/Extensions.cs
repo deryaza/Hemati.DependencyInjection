@@ -6,6 +6,8 @@ namespace Hemati.DependencyInjection.Analyzer;
 
 public static class Extensions
 {
+    private static readonly SymbolDisplayFormat sdf = new(typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
+
     public static bool NamedLike(this INamedTypeSymbol typeSymbol, string ns, string type)
     {
         return typeSymbol.ContainingNamespace.ToDisplayString() == ns && typeSymbol.Name == type;
@@ -13,7 +15,6 @@ public static class Extensions
 
     private static string GetPossiblyGenericName(ITypeSymbol symbol)
     {
-        SymbolDisplayFormat sdf = new(typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
         if (symbol is not INamedTypeSymbol { IsGenericType: true } s)
         {
             return symbol.ToDisplayString(sdf);
@@ -33,7 +34,7 @@ public static class Extensions
 
         string name = $"{typeSymbol.ContainingNamespace.ToDisplayString()}.";
         ITypeSymbol? containingType = typeSymbol;
-        while ((containingType = typeSymbol.ContainingType) != null)
+        while ((containingType = containingType.ContainingType) != null)
         {
             name += $"{containingType.Name}+";
         }
